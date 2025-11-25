@@ -6,6 +6,7 @@ Ein ESPHome-basiertes Projekt, das ein altes Wählscheibentelefon in einen moder
 
 *   **Push-to-Talk:** Hörer abnehmen startet sofort den Sprachassistenten (kein Wake Word nötig).
 *   **Visuelles Feedback:** Die Tasten leuchten Grün, wenn der Assistent zuhört, und Rot bei Fehlern.
+*   **Akustisches Feedback:** Klick-Geräusche beim Wählen und Hook-Flash werden direkt über den Hörer abgespielt.
 *   **Wählscheibe:**
     *   **Normalbetrieb:** Sendet Events an Home Assistant (Szenenwahl, etc.).
     *   **Musikbetrieb:** Regelt die Lautstärke des Sockel-Lautsprechers (1=10%, 0=100%).
@@ -22,7 +23,6 @@ Ein ESPHome-basiertes Projekt, das ein altes Wählscheibentelefon in einen moder
 *   **Audio Hörer:** I2S Mikrofon (z.B. INMP441) & I2S Verstärker (z.B. MAX98357A)
 *   **Audio Sockel:** Zweiter I2S Verstärker (z.B. MAX98357A) für Klingeln/Musik
 *   **LEDs:** WS2812B LED-Streifen (4 LEDs)
-*   **Feedback:** Piezo-Summer (für Klick-Geräusche)
 *   **Telefon:** Altes Wählscheibentelefon mit Impulswahlverfahren
 
 ## Pinbelegung (LilyGO T7-S3)
@@ -43,7 +43,6 @@ Ein ESPHome-basiertes Projekt, das ein altes Wählscheibentelefon in einen moder
 | | Schnellwahl 4 | GPIO 13 |
 | | Wählscheibe (Impuls) | GPIO 14 |
 | **Ausgabe** | WS2812B LEDs (Data) | GPIO 2 |
-| | Piezo Summer (RTTTL) | GPIO 4 |
 | **Power** | Batterie (ADC) | GPIO 35 |
 
 ## Home Assistant Integration
@@ -112,3 +111,9 @@ Erstelle eine Automation, die auf Änderungen von `sensor.rotary_phone_agent_are
 1.  `secrets.yaml` anpassen (WLAN-Daten).
 2.  Projekt mit ESPHome kompilieren und auf den ESP32-S3 flashen.
 3.  In Home Assistant integrieren.
+
+### Sound-Dateien
+
+Damit das akustische Feedback (Klick-Geräusch) funktioniert, muss eine MP3-Datei in Home Assistant hinterlegt sein.
+1.  Lade eine `click.mp3` Datei in den `www/sounds/` Ordner deiner Home Assistant Installation hoch.
+2.  Passe ggf. die URL in der `rotary_phone_agent.yaml` an (`http://YOUR_HA_IP:8123/local/sounds/click.mp3`).

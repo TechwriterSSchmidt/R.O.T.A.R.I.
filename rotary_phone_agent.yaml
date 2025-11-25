@@ -138,6 +138,13 @@ media_player:
     on_idle:
       - light.turn_off: button_leds
 
+  # Media Player für Hörer (für Feedback-Töne)
+  - platform: speaker
+    name: "Rotary Phone Handset Speaker"
+    id: media_player_handset
+    speaker: speaker_handset
+
+
 # Button LEDs
 light:
   - platform: esp32_rmt_led_strip
@@ -224,15 +231,8 @@ switch:
           value: 'false'
       - script.execute: flush_dialed_number
 
-# Rtttl für akustisches Feedback (Piezo Summer)
-rtttl:
-  output: buzzer_pwm
-  id: buzzer
+# Rtttl entfernt, da Feedback über Hörer
 
-output:
-  - platform: ledc
-    pin: GPIO4
-    id: buzzer_pwm
 
 # Skript zum Verarbeiten der gewählten Ziffer
 script:
@@ -446,7 +446,9 @@ binary_sensor:
             # Hook Flash (kurz getippt) -> Event senden
             - logger.log: "Hook Flash detected"
             - homeassistant.event: esphome.rotary_phone_flash
-            - rtttl.play: "flash:d=16,o=6,b=100:c,e"
+            - media_player.play_media:
+                id: media_player_handset
+                media_url: "http://YOUR_HA_IP:8123/local/sounds/click.mp3" # Bitte URL anpassen
           else:
             # Normales Abnehmen -> Stop Media & Start Listening
             - if:
@@ -531,8 +533,10 @@ binary_sensor:
       - delayed_off: 10ms
     on_press:
       then:
-        # Akustisches Feedback (Klick)
-        - rtttl.play: "click:d=32,o=5,b=100:c"
+        # Akustisches Feedback (Klick) über Hörer
+        - media_player.play_media:
+            id: media_player_handset
+            media_url: "http://YOUR_HA_IP:8123/local/sounds/click.mp3" # Bitte URL anpassen
         # Zähler erhöhen
         - globals.set:
             id: dial_pulse_count
