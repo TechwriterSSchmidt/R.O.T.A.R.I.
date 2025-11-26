@@ -6,7 +6,7 @@ Ein ESPHome-basiertes Projekt, das ein altes Wählscheibentelefon in einen moder
 
 *   **Push-to-Talk:** Hörer abnehmen startet sofort den Sprachassistenten (kein Wake Word nötig).
 *   **Visuelles Feedback:** Die Tasten leuchten Grün, wenn der Assistent zuhört, und Rot bei Fehlern.
-*   **Akustisches Feedback:** Klick-Geräusche beim Wählen und Hook-Flash werden latenzfrei über einen Piezo-Buzzer ausgegeben.
+*   **Akustisches Feedback:** Authentische Klick-Geräusche und Klingeltöne über einen DFPlayer Mini (MP3).
 *   **Wählscheibe:**
     *   **Normalbetrieb:** Sendet Events an Home Assistant (Szenenwahl, etc.).
     *   **Musikbetrieb:** Regelt die Lautstärke des Sockel-Lautsprechers (1=10%, 0=100%).
@@ -21,8 +21,8 @@ Ein ESPHome-basiertes Projekt, das ein altes Wählscheibentelefon in einen moder
     *   Integrierter Laderegler (TP4054) für 3.7V LiPo Akkus.
     *   **Achtung:** Polarität des JST 1.25mm Steckers vor Anschluss prüfen!
 *   **Audio Hörer:** I2S Mikrofon (z.B. INMP441) & I2S Verstärker (z.B. MAX98357A)
-*   **Audio Sockel:** Zweiter I2S Verstärker (z.B. MAX98357A) für Klingeln/Musik
-*   **Feedback:** Piezo Buzzer (passiv) für Klick-Geräusche
+*   **Audio Sockel:** Zweiter I2S Verstärker (z.B. MAX98357A) für Musik
+*   **Audio Sounds:** DFPlayer Mini für Klingeltöne und Klick-Geräusche (eigener Lautsprecher empfohlen)
 *   **LEDs:** WS2812B LED-Streifen (4 LEDs)
 *   **Telefon:** Altes Wählscheibentelefon mit Impulswahlverfahren
 
@@ -44,7 +44,8 @@ Ein ESPHome-basiertes Projekt, das ein altes Wählscheibentelefon in einen moder
 | | Schnellwahl 4 | GPIO 13 |
 | | Wählscheibe (Impuls) | GPIO 14 |
 | **Ausgabe** | WS2812B LEDs (Data) | GPIO 2 |
-| | Piezo Buzzer | GPIO 21 |
+| | DFPlayer TX | GPIO 43 |
+| | DFPlayer RX | GPIO 44 |
 | **Power** | Batterie (ADC) | GPIO 4 |
 
 ## Home Assistant Integration
@@ -63,6 +64,10 @@ Folgende Entitäten stehen zur Verfügung, um das Verhalten des Telefons anzupas
     *   **Ein:** Ziffern werden gesammelt und erst nach einer Pause als ganzer String gesendet (für Telefonnummern).
 *   **Number:** `number.rotary_phone_dial_timeout`
     *   Legt fest, wie lange (in ms) nach der letzten Ziffer gewartet wird, bevor der String gesendet wird (nur im Multi-Digit Modus).
+*   **Klingelton-Einstellungen:**
+    *   `number.ringtone_count`: Anzahl der Wiederholungen des Klingeltons.
+    *   `number.ringtone_duration`: Dauer des Klingeltons (in ms).
+    *   `number.ringtone_pause`: Pause zwischen den Wiederholungen (in ms).
 
 ### Events
 
@@ -113,3 +118,11 @@ Erstelle eine Automation, die auf Änderungen von `sensor.rotary_phone_agent_are
 1.  `secrets.yaml` anpassen (WLAN-Daten).
 2.  Projekt mit ESPHome kompilieren und auf den ESP32-S3 flashen.
 3.  In Home Assistant integrieren.
+
+### SD-Karte für DFPlayer Mini
+
+Die SD-Karte muss FAT32 formatiert sein. Erstelle folgende Ordnerstruktur:
+
+*   `/01/001.mp3`: Klingelton
+*   `/02/001.mp3`: Klick-Geräusch (Wählscheibe)
+*   `/02/002.mp3`: Hook Flash Feedback (Doppel-Piep)

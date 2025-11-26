@@ -157,17 +157,22 @@ esp32_ble_tracker:
 bluetooth_proxy:
   active: true
 
-# Piezo Buzzer für lokales Feedback (Klicken/Piepen)
-output:
-  - platform: ledc
-    id: buzzer_pwm
-    pin: GPIO21 # Geändert: GPIO4 wird für Batterie-Messung benötigt.
+# UART für DFPlayer Mini
+uart:
+  tx_pin: GPIO43
+  rx_pin: GPIO44
+  baud_rate: 9600
+  id: uart_bus
 
-rtttl:
-  output: buzzer_pwm
-  id: buzzer
-
-
+# DFPlayer Mini für Klingeltöne und Sounds
+# Ordnerstruktur auf SD-Karte:
+# /01/001.mp3 -> Klingelton
+# /02/001.mp3 -> Klick-Geräusch (Wählscheibe)
+# /02/002.mp3 -> Hook Flash Feedback
+dfplayer:
+  uart_id: uart_bus
+  on_finished_playback:
+    - logger.log: "DFPlayer playback finished"
 
 # Battery Sensor
 sensor:
@@ -190,6 +195,38 @@ sensor:
     id: last_dialed_digit
     icon: "mdi:dialpad"
     accuracy_decimals: 0
+
+  - platform: template
+    name: "Ringtone Count"
+    id: ring_count
+    min_value: 1
+    max_value: 20
+    step: 1
+    initial_value: 5
+    optimistic: true
+    restore_value: true
+
+  - platform: template
+    name: "Ringtone Duration"
+    id: ring_duration
+    unit_of_measurement: "ms"
+    min_value: 1000
+    max_value: 10000
+    step: 100
+    initial_value: 3000
+    optimistic: true
+    restore_value: true
+
+  - platform: template
+    name: "Ringtone Pause"
+    id: ring_pause
+    unit_of_measurement: "ms"
+    min_value: 500
+    max_value: 10000
+    step: 100
+    initial_value: 2000
+    optimistic: true
+    restore_value: true
 
 # Globale Variablen
 globals:
@@ -468,8 +505,10 @@ binary_sensor:
             - logger.log: "Hook Flash detected"
             - homeassistant.event:
                 event: esphome.rotary_phone_flash
-            # Lokales Feedback (Doppel-Piep)
-            - rtttl.play: "two_beeps:d=16,o=5,b=100:c,p,c"
+            # Lokales Feedback (Doppel-Piep) via DFPlayer
+            - dfplayer.play_folder:
+                folder: 2
+                file: 2
           else:
             # Normales Abnehmen -> Stop Media & Start Listening
             - if:
@@ -554,11 +593,34 @@ binary_sensor:
       - delayed_off: 10ms
     on_press:
       then:
-        # Akustisches Feedback (Klick) lokal via Piezo
-        - rtttl.play: "click:d=32,o=6,b=100:c"
+        # Akustisches Feedback (Klick) lokal via DFPlayer
+        - dfplayer.play_folder:
+            folder: 2
+            file: 1
         # Zähler erhöhen
         - globals.set:
             id: dial_pulse_count
             value: !lambda 'return id(dial_pulse_count) + 1;'
         # Timer neu starten (wartet auf Ende der Impulsfolge)
         - script.execute: process_dialed_digit
+
+  # Skript: Telefon klingeln lassen
+  - id: ring_phone
+    mode: restart
+    then:
+      - repeat:
+          count: !lambda 'return id(ring_count).state;'
+          then:
+            # Nur klingeln, wenn Hörer aufgelegt ist (Sensor ist ON)
+            - if:
+                condition:
+                  binary_sensor.is_on: phone_hook
+                then:
+                  - dfplayer.play_folder:
+                      folder: 1
+                      file: 1
+                  # Wartezeit = Länge des Klingeltons + Pause
+                  - delay: !lambda 'return id(ring_duration).state;'
+                  - delay: !lambda 'return id(ring_pause).state;'
+                else:
+                  - script.stop: ring_phone
