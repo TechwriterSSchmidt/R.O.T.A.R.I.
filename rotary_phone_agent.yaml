@@ -172,7 +172,7 @@ rtttl:
 # Battery Sensor
 sensor:
   - platform: adc
-    pin: GPIO4 # Geändert: GPIO35 ist beim S3 kein ADC oder belegt. GPIO4 ist ADC1_CH3.
+    pin: GPIO4 # GPIO4 ist ADC1_CH3.
     name: "Battery Voltage"
     update_interval: 60s
     attenuation: 12db
@@ -184,6 +184,12 @@ sensor:
           - homeassistant.event:
               event: esphome.rotary_phone_low_battery
           - logger.log: "Battery Low! Sending event."
+
+  - platform: template
+    name: "Last Dialed Digit"
+    id: last_dialed_digit
+    icon: "mdi:dialpad"
+    accuracy_decimals: 0
 
 # Globale Variablen
 globals:
@@ -234,8 +240,6 @@ switch:
           id: multi_digit_mode
           value: 'false'
       - script.execute: flush_dialed_number
-
-# Rtttl entfernt, da Feedback über Hörer
 
 
 # Skript zum Verarbeiten der gewählten Ziffer
@@ -376,6 +380,11 @@ script:
           format: "Wählscheibe: %d Impulse gezählt"
           args: [ 'id(dial_pulse_count)' ]
       
+      # Update sensor with the last dialed digit
+      - sensor.template.publish:
+          id: last_dialed_digit
+          state: !lambda 'return (id(dial_pulse_count) == 10) ? 0 : id(dial_pulse_count);'
+
       # Logik-Weiche: Musiksteuerung vs. Home Assistant Event
       - if:
           condition:
