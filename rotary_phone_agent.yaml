@@ -205,9 +205,9 @@ dfplayer:
 ld2410:
   uart_id: uart_bus_radar
 
-# Battery Sensor
+#  Sensors
 sensor:
-  - platform: bme280
+  - platform: bme280_i2c
     i2c_id: bus_a
     address: 0x76 # Prüfen: 0x76 oder 0x77
     temperature:
@@ -288,38 +288,6 @@ sensor:
     icon: "mdi:dialpad"
     accuracy_decimals: 0
 
-  - platform: template
-    name: "Ringtone Count"
-    id: ring_count
-    min_value: 1
-    max_value: 20
-    step: 1
-    initial_value: 5
-    optimistic: true
-    restore_value: true
-
-  - platform: template
-    name: "Ringtone Duration"
-    id: ring_duration
-    unit_of_measurement: "ms"
-    min_value: 1000
-    max_value: 10000
-    step: 100
-    initial_value: 3000
-    optimistic: true
-    restore_value: true
-
-  - platform: template
-    name: "Ringtone Pause"
-    id: ring_pause
-    unit_of_measurement: "ms"
-    min_value: 500
-    max_value: 10000
-    step: 100
-    initial_value: 2000
-    optimistic: true
-    restore_value: true
-
 # Globale Variablen
 globals:
   - id: dial_pulse_count
@@ -369,6 +337,38 @@ number:
       - globals.set:
           id: dial_timeout_ms
           value: !lambda 'return x;'
+
+  - platform: template
+    name: "Ringtone Count"
+    id: ring_count
+    min_value: 1
+    max_value: 20
+    step: 1
+    initial_value: 5
+    optimistic: true
+    restore_value: true
+
+  - platform: template
+    name: "Ringtone Duration"
+    id: ring_duration
+    unit_of_measurement: "ms"
+    min_value: 1000
+    max_value: 10000
+    step: 100
+    initial_value: 3000
+    optimistic: true
+    restore_value: true
+
+  - platform: template
+    name: "Ringtone Pause"
+    id: ring_pause
+    unit_of_measurement: "ms"
+    min_value: 500
+    max_value: 10000
+    step: 100
+    initial_value: 2000
+    optimistic: true
+    restore_value: true
 
 switch:
   - platform: template
@@ -724,6 +724,7 @@ binary_sensor:
               data:
                 button: "1"
       - min_length: 3000ms
+        max_length: 10000ms
         then:
           - if:
               condition:
