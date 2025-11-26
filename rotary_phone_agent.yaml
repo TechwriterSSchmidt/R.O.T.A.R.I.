@@ -1,6 +1,9 @@
 esphome:
   name: rotary-phone-agent
   friendly_name: Rotary Phone Agent
+  min_version: 2024.7.0
+  platformio_options:
+    board_build.flash_mode: dio
 
 esp32:
   board: esp32-s3-devkitc-1
@@ -10,8 +13,12 @@ esp32:
 # Enable logging
 logger:
 
+# Enable debug component (Watchdog)
+debug:
+
 # Enable Home Assistant API
 api:
+  reboot_timeout: 15min
   services:
     - service: start_find_my_phone
       then:
@@ -36,6 +43,9 @@ wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
 
+  # Reboot if no wifi connection for 15 minutes
+  reboot_timeout: 15min
+
   # Enable fallback hotspot (captive portal) in case wifi connection fails
   ap:
     ssid: "Rotary-Phone-Agent Fallback"
@@ -57,7 +67,6 @@ i2s_audio:
   - id: i2s_bus_base
     i2s_lrclk_pin: GPIO16
     i2s_bclk_pin: GPIO18 # Geändert (war 17, Konflikt mit LED auf T7-S3)
-    i2s_dout_pin: GPIO19 # Geändert (war 18)
 
 microphone:
   - platform: i2s_audio
@@ -74,30 +83,49 @@ speaker:
     i2s_audio_id: i2s_bus_handset
     i2s_dout_pin: GPIO15
     dac_type: external
-    mode: mono
 
-  # Lautsprecher im Sockel (für Klingeln & Musik)
+# Media Player für Klingeltöne & Musik (via I2S Sockel-Lautsprecher)
+media_player:
   - platform: i2s_audio
-    id: speaker_base
+    name: "Rotary Phone Base Speaker"
+    id: media_player_base
     i2s_audio_id: i2s_bus_base
-    i2s_dout_pin: GPIO19 # Geändert (war 18)
+    i2s_dout_pin: GPIO19
     dac_type: external
     mode: mono
+    on_play:
+      - light.turn_on: button_leds
+      - light.addressable_set:
+          id: button_leds
+          range_from: 0
+          range_to: 4
+          red: 0%
+          green: 0%
+          blue: 100% # Blau bei Musik/Klingeln
+    on_idle:
+      - light.turn_off: button_leds
 
 voice_assistant:
   microphone: mic_i2s
   speaker: speaker_handset # Antwort nur im Hörer
   on_start:
-    - script.stop: led_blink_blue
-    - script.stop: led_blink_red
-    - light.turn_on: button_leds # Strip einschalten
-    - light.addressable_set:
-        id: button_leds
-        range_from: 0
-        range_to: 1
-        red: 0%
-        green: 100%
-        blue: 0% # Grün = Zuhören
+    - if:
+        condition:
+          lambda: 'return id(is_muted);'
+        then:
+          - voice_assistant.stop:
+          - logger.log: "Voice Assistant blocked because of Mute"
+        else:
+          - script.stop: led_blink_blue
+          - script.stop: led_blink_red
+          - light.turn_on: button_leds # Strip einschalten
+          - light.addressable_set:
+              id: button_leds
+              range_from: 0
+              range_to: 1
+              red: 0%
+              green: 100%
+              blue: 0% # Grün = Zuhören
   on_stt_end:
     - script.execute: led_blink_blue # Blau blinken = Verarbeiten
   on_tts_start:
@@ -120,38 +148,13 @@ voice_assistant:
     - script.stop: led_blink_red
     - light.turn_off: button_leds
 
-# Media Player für Klingeltöne & Musik (via I2S Sockel-Lautsprecher)
-media_player:
-  - platform: speaker
-    name: "Rotary Phone Base Speaker"
-    id: media_player_base
-    speaker: speaker_base
-    on_play:
-      - light.turn_on: button_leds
-      - light.addressable_set:
-          id: button_leds
-          range_from: 0
-          range_to: 4
-          red: 0%
-          green: 0%
-          blue: 100% # Blau bei Musik/Klingeln
-    on_idle:
-      - light.turn_off: button_leds
-
-  # Media Player für Hörer (für Feedback-Töne)
-  - platform: speaker
-    name: "Rotary Phone Handset Speaker"
-    id: media_player_handset
-    speaker: speaker_handset
-
-
 # Button LEDs
 light:
   - platform: esp32_rmt_led_strip
     rgb_order: GRB
     pin: GPIO2 # Geändert für T7-S3 (externer Pin)
     num_leds: 4
-    rmt_channel: 0
+    chipset: ws2812
     name: "Button LEDs"
     id: button_leds
     restore_mode: ALWAYS_OFF
@@ -160,26 +163,130 @@ light:
 
 # Enable Bluetooth for Bermuda BLE Trilateration
 esp32_ble_tracker:
+  scan_parameters:
+    interval: 1100ms
+    window: 1100ms
+    active: true
 
-bluetooth:
+bluetooth_proxy:
+  active: true
 
+# I2C Bus für Sensoren (BME280)
+i2c:
+  sda: GPIO8
+  scl: GPIO9
+  scan: true
+  id: bus_a
 
+# UART für DFPlayer Mini
+uart:
+  - id: uart_bus_dfplayer
+    tx_pin: GPIO43
+    rx_pin: GPIO44
+    baud_rate: 9600
 
-# Battery Sensor
+  - id: uart_bus_radar
+    tx_pin: GPIO39 # ESP TX -> Radar RX
+    rx_pin: GPIO38 # ESP RX <- Radar TX
+    baud_rate: 256000
+    parity: NONE
+    stop_bits: 1
+
+# DFPlayer Mini für Klingeltöne und Sounds
+# Ordnerstruktur auf SD-Karte:
+# /01/001.mp3 -> Klingelton
+# /02/001.mp3 -> Klick-Geräusch (Wählscheibe)
+# /02/002.mp3 -> Hook Flash Feedback
+dfplayer:
+  uart_id: uart_bus_dfplayer
+  on_finished_playback:
+    - logger.log: "DFPlayer playback finished"
+
+ld2410:
+  uart_id: uart_bus_radar
+
+#  Sensors
 sensor:
-  - platform: adc
-    pin: GPIO35 # T7-S3 Battery Voltage Pin
-    name: "Battery Voltage"
+  - platform: bme280_i2c
+    i2c_id: bus_a
+    address: 0x76 # Prüfen: 0x76 oder 0x77
+    temperature:
+      name: "Phone Temperature"
+    humidity:
+      name: "Phone Humidity"
+    pressure:
+      name: "Phone Pressure"
     update_interval: 60s
-    attenuation: 11db
+
+  - platform: ld2410
+    moving_distance:
+      name: "Moving Target Distance"
+    still_distance:
+      name: "Still Target Distance"
+    detection_distance:
+      name: "Detection Distance"
+
+  - platform: adc
+    pin: GPIO4 # GPIO4 ist ADC1_CH3.
+    name: "Battery Voltage"
+    id: battery_voltage
+    update_interval: 60s
+    attenuation: 12db
     filters:
       - multiply: 2.0 # Spannungsteiler anpassen falls nötig
-    on_value_range:
-      - below: 3.3
-        then:
-          - homeassistant.event:
-              event: esphome.rotary_phone_low_battery
-          - logger.log: "Battery Low! Sending event."
+    on_value:
+      then:
+        - if:
+            condition:
+              lambda: |-
+                // Umrechnung Prozent -> Volt für den Vergleich (Linear: 3.0V=0%, 4.2V=100%)
+                float threshold_volts = 3.0 + (id(low_battery_threshold).state / 100.0) * 1.2;
+                return x < threshold_volts;
+            then:
+              - if:
+                  condition:
+                    not:
+                      script.is_running: led_pulse_red_battery
+                  then:
+                    - script.execute: led_pulse_red_battery
+                    - homeassistant.event:
+                        event: esphome.rotary_phone_low_battery
+                    - logger.log: "Battery Low! Starting alarm."
+            else:
+              - if:
+                  condition:
+                    script.is_running: led_pulse_red_battery
+                  then:
+                    - script.stop: led_pulse_red_battery
+                    - light.addressable_set:
+                        id: button_leds
+                        range_from: 3
+                        range_to: 4
+                        red: 0%
+                        green: 0%
+                        blue: 0%
+                    - logger.log: "Battery OK. Stopping alarm."
+
+  - platform: template
+    name: "Battery Level"
+    id: battery_level
+    unit_of_measurement: "%"
+    device_class: battery
+    accuracy_decimals: 0
+    lambda: |-
+      if (isnan(id(battery_voltage).state)) return NAN;
+      // Linear mapping: 3.0V -> 0%, 4.2V -> 100%
+      float level = (id(battery_voltage).state - 3.0) / 1.2 * 100.0;
+      if (level < 0) return 0;
+      if (level > 100) return 100;
+      return level;
+    update_interval: 60s
+
+  - platform: template
+    name: "Last Dialed Digit"
+    id: last_dialed_digit
+    icon: "mdi:dialpad"
+    accuracy_decimals: 0
 
 # Globale Variablen
 globals:
@@ -201,8 +308,23 @@ globals:
     type: int
     restore_value: yes
     initial_value: '3000'
+  - id: is_muted
+    type: bool
+    restore_value: no
+    initial_value: 'false'
 
 number:
+  - platform: template
+    name: "Low Battery Threshold"
+    id: low_battery_threshold
+    unit_of_measurement: "%"
+    min_value: 5
+    max_value: 50
+    step: 1
+    initial_value: 20
+    optimistic: true
+    restore_value: true
+
   - platform: template
     name: "Rotary Phone Dial Timeout"
     id: rotary_phone_dial_timeout
@@ -215,6 +337,38 @@ number:
       - globals.set:
           id: dial_timeout_ms
           value: !lambda 'return x;'
+
+  - platform: template
+    name: "Ringtone Count"
+    id: ring_count
+    min_value: 1
+    max_value: 20
+    step: 1
+    initial_value: 5
+    optimistic: true
+    restore_value: true
+
+  - platform: template
+    name: "Ringtone Duration"
+    id: ring_duration
+    unit_of_measurement: "ms"
+    min_value: 1000
+    max_value: 10000
+    step: 100
+    initial_value: 3000
+    optimistic: true
+    restore_value: true
+
+  - platform: template
+    name: "Ringtone Pause"
+    id: ring_pause
+    unit_of_measurement: "ms"
+    min_value: 500
+    max_value: 10000
+    step: 100
+    initial_value: 2000
+    optimistic: true
+    restore_value: true
 
 switch:
   - platform: template
@@ -231,11 +385,10 @@ switch:
           value: 'false'
       - script.execute: flush_dialed_number
 
-# Rtttl entfernt, da Feedback über Hörer
 
-
-# Skript zum Verarbeiten der gewählten Ziffer
+# Skripte
 script:
+  # Skript zum Verarbeiten der gewählten Ziffer
   - id: flush_dialed_number
     then:
       - if:
@@ -262,7 +415,9 @@ script:
   - id: led_blink_blue
     mode: restart
     then:
-      - loop:
+      - while:
+          condition:
+            lambda: 'return true;'
           then:
             - light.addressable_set:
                 id: button_leds
@@ -284,7 +439,9 @@ script:
   - id: led_blink_red
     mode: restart
     then:
-      - loop:
+      - while:
+          condition:
+            lambda: 'return true;'
           then:
             - light.addressable_set:
                 id: button_leds
@@ -308,7 +465,9 @@ script:
     mode: restart
     then:
       - light.turn_on: button_leds
-      - loop:
+      - while:
+          condition:
+            lambda: 'return true;'
           then:
             - light.addressable_set:
                 id: button_leds
@@ -332,7 +491,9 @@ script:
     mode: restart
     then:
       - light.turn_on: button_leds
-      - loop:
+      - while:
+          condition:
+            lambda: 'return true;'
           then:
             # Visueller Alarm (Alle LEDs Rot blinken)
             - light.addressable_set:
@@ -364,6 +525,11 @@ script:
           format: "Wählscheibe: %d Impulse gezählt"
           args: [ 'id(dial_pulse_count)' ]
       
+      # Update sensor with the last dialed digit
+      - sensor.template.publish:
+          id: last_dialed_digit
+          state: !lambda 'return (id(dial_pulse_count) == 10) ? 0 : id(dial_pulse_count);'
+
       # Logik-Weiche: Musiksteuerung vs. Home Assistant Event
       - if:
           condition:
@@ -417,6 +583,80 @@ script:
           id: dial_pulse_count
           value: '0'
 
+  # Skript: Telefon klingeln lassen
+  - id: ring_phone
+    mode: restart
+    then:
+      - repeat:
+          count: !lambda 'return id(ring_count).state;'
+          then:
+            # Nur klingeln, wenn Hörer aufgelegt ist (Sensor ist ON)
+            - if:
+                condition:
+                  binary_sensor.is_on: phone_hook
+                then:
+                  - dfplayer.play_folder:
+                      folder: 1
+                      file: 1
+                  # Wartezeit = Länge des Klingeltons + Pause
+                  - delay: !lambda 'return id(ring_duration).state;'
+                  - delay: !lambda 'return id(ring_pause).state;'
+                else:
+                  - script.stop: ring_phone
+
+  - id: led_pulse_red_battery
+    mode: restart
+    then:
+      - while:
+          condition:
+            lambda: 'return true;'
+          then:
+            # Einblenden (Rot, LED 4)
+            - light.addressable_set:
+                id: button_leds
+                range_from: 3
+                range_to: 4
+                red: 100%
+                green: 0%
+                blue: 0%
+            - delay: 1000ms
+            # Ausblenden
+            - light.addressable_set:
+                id: button_leds
+                range_from: 3
+                range_to: 4
+                red: 10%
+                green: 0%
+                blue: 0%
+            - delay: 1000ms
+
+  - id: led_pulse_purple_mute
+    mode: restart
+    then:
+      - while:
+          condition:
+            lambda: 'return id(is_muted);'
+          then:
+            # Einblenden (Lila)
+            - light.addressable_set:
+                id: button_leds
+                range_from: 0
+                range_to: 1 # Nur LED 1
+                red: 50%
+                green: 0%
+                blue: 50%
+            - delay: 1000ms
+            # Ausblenden
+            - light.addressable_set:
+                id: button_leds
+                range_from: 0
+                range_to: 1
+                red: 10%
+                green: 0%
+                blue: 10%
+            - delay: 1000ms
+
+# Binary sensors configuration
 binary_sensor:
   # Hook switch (Telefonhörer aufgelegt)
   # Wenn der Hörer aufgelegt ist, wird der Taster gedrückt (Low oder High je nach Verdrahtung)
@@ -431,12 +671,17 @@ binary_sensor:
       - delayed_on: 50ms
       - delayed_off: 50ms
     on_press:
-      # Hörer aufgelegt -> Stop & Timestamp speichern
+      # Hörer aufgelegt -> Stop & Timestamp speichern & Mute Reset
       - voice_assistant.stop:
       - light.turn_off: button_leds
       - globals.set:
           id: hook_down_timestamp
           value: !lambda 'return millis();'
+      # Reset Mute State
+      - globals.set:
+          id: is_muted
+          value: 'false'
+      - script.stop: led_pulse_purple_mute
     on_release:
       # Hörer abgenommen -> Prüfen ob Flash oder echtes Abnehmen
       - if:
@@ -445,10 +690,12 @@ binary_sensor:
           then:
             # Hook Flash (kurz getippt) -> Event senden
             - logger.log: "Hook Flash detected"
-            - homeassistant.event: esphome.rotary_phone_flash
-            - media_player.play_media:
-                id: media_player_handset
-                media_url: "http://YOUR_HA_IP:8123/local/sounds/click.mp3" # Bitte URL anpassen
+            - homeassistant.event:
+                event: esphome.rotary_phone_flash
+            # Lokales Feedback (Doppel-Piep) via DFPlayer
+            - dfplayer.play_folder:
+                folder: 2
+                file: 2
           else:
             # Normales Abnehmen -> Stop Media & Start Listening
             - if:
@@ -459,7 +706,7 @@ binary_sensor:
             - voice_assistant.start:
 
   # Speed dial buttons (Schnellwahltaster)
-  # Taste 1
+  # Taste 1 (Mute Funktion bei Long Press)
   - platform: gpio
     pin:
       number: GPIO10
@@ -468,11 +715,37 @@ binary_sensor:
     filters:
       - delayed_on: 50ms
       - delayed_off: 50ms
-    on_press:
-      - homeassistant.event:
-          event: esphome.rotary_phone_button
-          data:
-            button: 1
+    on_click:
+      - min_length: 50ms
+        max_length: 1000ms
+        then:
+          - homeassistant.event:
+              event: esphome.rotary_phone_button
+              data:
+                button: "1"
+      - min_length: 3000ms
+        max_length: 10000ms
+        then:
+          - if:
+              condition:
+                lambda: 'return id(is_muted);'
+              then:
+                # Unmute
+                - globals.set:
+                    id: is_muted
+                    value: 'false'
+                - voice_assistant.start: # Mikrofon wieder aktivieren (falls gewünscht)
+                - script.stop: led_pulse_purple_mute
+                - light.turn_off: button_leds
+                - logger.log: "Microphone Unmuted"
+              else:
+                # Mute
+                - globals.set:
+                    id: is_muted
+                    value: 'true'
+                - voice_assistant.stop:
+                - script.execute: led_pulse_purple_mute
+                - logger.log: "Microphone Muted"
 
   # Taste 2
   - platform: gpio
@@ -487,7 +760,7 @@ binary_sensor:
       - homeassistant.event:
           event: esphome.rotary_phone_button
           data:
-            button: 2
+            button: "2"
   
   # Taste 3
   - platform: gpio
@@ -502,7 +775,7 @@ binary_sensor:
       - homeassistant.event:
           event: esphome.rotary_phone_button
           data:
-            button: 3
+            button: "3"
   
   # Taste 4
   - platform: gpio
@@ -517,7 +790,7 @@ binary_sensor:
       - homeassistant.event:
           event: esphome.rotary_phone_button
           data:
-            button: 4
+            button: "4"
 
   # Rotary Dial (Wählscheibe) - Impuls-Pin
   # Wir nutzen binary_sensor statt pulse_counter für bessere Kontrolle und Entprellung
@@ -533,13 +806,15 @@ binary_sensor:
       - delayed_off: 10ms
     on_press:
       then:
-        # Akustisches Feedback (Klick) über Hörer
-        - media_player.play_media:
-            id: media_player_handset
-            media_url: "http://YOUR_HA_IP:8123/local/sounds/click.mp3" # Bitte URL anpassen
+        # Akustisches Feedback (Klick) lokal via DFPlayer
+        - dfplayer.play_folder:
+            folder: 2
+            file: 1
         # Zähler erhöhen
         - globals.set:
             id: dial_pulse_count
             value: !lambda 'return id(dial_pulse_count) + 1;'
         # Timer neu starten (wartet auf Ende der Impulsfolge)
         - script.execute: process_dialed_digit
+
+# End of file

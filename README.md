@@ -6,14 +6,18 @@ Ein ESPHome-basiertes Projekt, das ein altes Wählscheibentelefon in einen moder
 
 *   **Push-to-Talk:** Hörer abnehmen startet sofort den Sprachassistenten (kein Wake Word nötig).
 *   **Visuelles Feedback:** Die Tasten leuchten Grün, wenn der Assistent zuhört, und Rot bei Fehlern.
-*   **Akustisches Feedback:** Klick-Geräusche beim Wählen und Hook-Flash werden direkt über den Hörer abgespielt.
+*   **Akustisches Feedback:** Authentische Klick-Geräusche und Klingeltöne über einen DFPlayer Mini (MP3).
 *   **Wählscheibe:**
     *   **Normalbetrieb:** Sendet Events an Home Assistant (Szenenwahl, etc.).
     *   **Musikbetrieb:** Regelt die Lautstärke des Sockel-Lautsprechers (1=10%, 0=100%).
 *   **Schnellwahltasten:** 4 Taster für benutzerdefinierte Aktionen.
+    *   **Taste 1 (Long Press):** Schaltet das Mikrofon stumm (Mute). LED 1 pulsiert lila. Auflegen setzt den Mute-Status zurück.
+*   **Umweltsensor:** Überwachung von Temperatur, Luftfeuchtigkeit und Luftdruck (BME280).
+*   **Präsenzerkennung:** Ein Radarsensor (LD2410) erkennt Bewegungen und Anwesenheit durch das Gehäuse hindurch (z.B. als mobiler Lichtschalter).
 *   **Raum-Tracking:** Dank Bluetooth und Bermuda BLE Trilateration weiß das Telefon, in welchem Raum es sich befindet.
 *   **Find My Phone:** Alarm-Funktion (Blinken), falls das Telefon verlegt wurde.
-*   **Batteriebetrieb:** Überwachung der Batteriespannung für mobilen Einsatz.
+*   **Batteriebetrieb:** Überwachung der Batteriespannung mit einstellbarem Alarm (rote LED) und Prozentanzeige.
+*   **Watchdog:** Automatischer Neustart bei Verbindungsproblemen (WLAN/API > 15min) oder Systemhängern.
 
 ## Hardware
 
@@ -21,7 +25,11 @@ Ein ESPHome-basiertes Projekt, das ein altes Wählscheibentelefon in einen moder
     *   Integrierter Laderegler (TP4054) für 3.7V LiPo Akkus.
     *   **Achtung:** Polarität des JST 1.25mm Steckers vor Anschluss prüfen!
 *   **Audio Hörer:** I2S Mikrofon (z.B. INMP441) & I2S Verstärker (z.B. MAX98357A)
-*   **Audio Sockel:** Zweiter I2S Verstärker (z.B. MAX98357A) für Klingeln/Musik
+*   **Audio Sockel:** Zweiter I2S Verstärker (z.B. MAX98357A) für Musik
+*   **Audio Sounds:** DFPlayer Mini für Klingeltöne und Klick-Geräusche (eigener Lautsprecher empfohlen)
+*   **Sensoren:**
+    *   **BME280:** Temperatur, Feuchtigkeit, Druck
+    *   **LD2410:** Radar-Präsenzerkennung (Moving/Still Target)
 *   **LEDs:** WS2812B LED-Streifen (4 LEDs)
 *   **Telefon:** Altes Wählscheibentelefon mit Impulswahlverfahren
 
@@ -43,7 +51,13 @@ Ein ESPHome-basiertes Projekt, das ein altes Wählscheibentelefon in einen moder
 | | Schnellwahl 4 | GPIO 13 |
 | | Wählscheibe (Impuls) | GPIO 14 |
 | **Ausgabe** | WS2812B LEDs (Data) | GPIO 2 |
-| **Power** | Batterie (ADC) | GPIO 35 |
+| | DFPlayer TX | GPIO 43 |
+| | DFPlayer RX | GPIO 44 |
+| **Sensoren (I2C)** | SDA (Data) | GPIO 8 |
+| | SCL (Clock) | GPIO 9 |
+| **Sensoren (UART)** | Radar TX (an ESP RX) | GPIO 38 |
+| | Radar RX (an ESP TX) | GPIO 39 |
+| **Power** | Batterie (ADC) | GPIO 4 |
 
 ## Home Assistant Integration
 
@@ -61,6 +75,24 @@ Folgende Entitäten stehen zur Verfügung, um das Verhalten des Telefons anzupas
     *   **Ein:** Ziffern werden gesammelt und erst nach einer Pause als ganzer String gesendet (für Telefonnummern).
 *   **Number:** `number.rotary_phone_dial_timeout`
     *   Legt fest, wie lange (in ms) nach der letzten Ziffer gewartet wird, bevor der String gesendet wird (nur im Multi-Digit Modus).
+*   **Klingelton-Einstellungen:**
+    *   `number.ringtone_count`: Anzahl der Wiederholungen des Klingeltons.
+    *   `number.ringtone_duration`: Dauer des Klingeltons (in ms).
+    *   `number.ringtone_pause`: Pause zwischen den Wiederholungen (in ms).
+*   **Batterie-Alarm:**
+    *   `number.low_battery_threshold`: Schwellwert in Prozent (5-50%), ab dem die 4. LED rot pulsiert.
+
+### Sensoren
+
+Das Gerät stellt folgende Sensoren in Home Assistant bereit:
+*   `sensor.phone_temperature`
+*   `sensor.phone_humidity`
+*   `sensor.phone_pressure`
+*   `sensor.battery_level` (in %)
+*   `sensor.battery_voltage` (in V)
+*   `sensor.moving_target_distance` (Radar)
+*   `sensor.still_target_distance` (Radar)
+*   `sensor.detection_distance` (Radar)
 
 ### Events
 
@@ -112,8 +144,10 @@ Erstelle eine Automation, die auf Änderungen von `sensor.rotary_phone_agent_are
 2.  Projekt mit ESPHome kompilieren und auf den ESP32-S3 flashen.
 3.  In Home Assistant integrieren.
 
-### Sound-Dateien
+### SD-Karte für DFPlayer Mini
 
-Damit das akustische Feedback (Klick-Geräusch) funktioniert, muss eine MP3-Datei in Home Assistant hinterlegt sein.
-1.  Lade eine `click.mp3` Datei in den `www/sounds/` Ordner deiner Home Assistant Installation hoch.
-2.  Passe ggf. die URL in der `rotary_phone_agent.yaml` an (`http://YOUR_HA_IP:8123/local/sounds/click.mp3`).
+Die SD-Karte muss FAT32 formatiert sein. Erstelle folgende Ordnerstruktur:
+
+*   `/01/001.mp3`: Klingelton
+*   `/02/001.mp3`: Klick-Geräusch (Wählscheibe)
+*   `/02/002.mp3`: Hook Flash Feedback (Doppel-Piep)
