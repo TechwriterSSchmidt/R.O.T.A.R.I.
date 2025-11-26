@@ -11,9 +11,13 @@ Ein ESPHome-basiertes Projekt, das ein altes Wählscheibentelefon in einen moder
     *   **Normalbetrieb:** Sendet Events an Home Assistant (Szenenwahl, etc.).
     *   **Musikbetrieb:** Regelt die Lautstärke des Sockel-Lautsprechers (1=10%, 0=100%).
 *   **Schnellwahltasten:** 4 Taster für benutzerdefinierte Aktionen.
+    *   **Taste 1 (Long Press):** Schaltet das Mikrofon stumm (Mute). LED 1 pulsiert lila. Auflegen setzt den Mute-Status zurück.
+*   **Umweltsensor:** Überwachung von Temperatur, Luftfeuchtigkeit und Luftdruck (BME280).
+*   **Präsenzerkennung:** Ein Radarsensor (LD2410) erkennt Bewegungen und Anwesenheit durch das Gehäuse hindurch (z.B. als mobiler Lichtschalter).
 *   **Raum-Tracking:** Dank Bluetooth und Bermuda BLE Trilateration weiß das Telefon, in welchem Raum es sich befindet.
 *   **Find My Phone:** Alarm-Funktion (Blinken), falls das Telefon verlegt wurde.
-*   **Batteriebetrieb:** Überwachung der Batteriespannung für mobilen Einsatz.
+*   **Batteriebetrieb:** Überwachung der Batteriespannung mit einstellbarem Alarm (rote LED) und Prozentanzeige.
+*   **Watchdog:** Automatischer Neustart bei Verbindungsproblemen (WLAN/API > 15min) oder Systemhängern.
 
 ## Hardware
 
@@ -23,6 +27,9 @@ Ein ESPHome-basiertes Projekt, das ein altes Wählscheibentelefon in einen moder
 *   **Audio Hörer:** I2S Mikrofon (z.B. INMP441) & I2S Verstärker (z.B. MAX98357A)
 *   **Audio Sockel:** Zweiter I2S Verstärker (z.B. MAX98357A) für Musik
 *   **Audio Sounds:** DFPlayer Mini für Klingeltöne und Klick-Geräusche (eigener Lautsprecher empfohlen)
+*   **Sensoren:**
+    *   **BME280:** Temperatur, Feuchtigkeit, Druck
+    *   **LD2410:** Radar-Präsenzerkennung (Moving/Still Target)
 *   **LEDs:** WS2812B LED-Streifen (4 LEDs)
 *   **Telefon:** Altes Wählscheibentelefon mit Impulswahlverfahren
 
@@ -46,6 +53,10 @@ Ein ESPHome-basiertes Projekt, das ein altes Wählscheibentelefon in einen moder
 | **Ausgabe** | WS2812B LEDs (Data) | GPIO 2 |
 | | DFPlayer TX | GPIO 43 |
 | | DFPlayer RX | GPIO 44 |
+| **Sensoren (I2C)** | SDA (Data) | GPIO 8 |
+| | SCL (Clock) | GPIO 9 |
+| **Sensoren (UART)** | Radar TX (an ESP RX) | GPIO 38 |
+| | Radar RX (an ESP TX) | GPIO 39 |
 | **Power** | Batterie (ADC) | GPIO 4 |
 
 ## Home Assistant Integration
@@ -68,6 +79,14 @@ Folgende Entitäten stehen zur Verfügung, um das Verhalten des Telefons anzupas
     *   `number.ringtone_count`: Anzahl der Wiederholungen des Klingeltons.
     *   `number.ringtone_duration`: Dauer des Klingeltons (in ms).
     *   `number.ringtone_pause`: Pause zwischen den Wiederholungen (in ms).
+
+### Sensoren
+
+Das Gerät stellt folgende Sensoren in Home Assistant bereit:
+*   `sensor.phone_temperature`
+*   `sensor.phone_humidity`
+*   `sensor.phone_pressure`
+*   `sensor.battery_voltage`
 
 ### Events
 
