@@ -79,6 +79,8 @@ Folgende Entitäten stehen zur Verfügung, um das Verhalten des Telefons anzupas
     *   `number.ringtone_count`: Anzahl der Wiederholungen des Klingeltons.
     *   `number.ringtone_duration`: Dauer des Klingeltons (in ms).
     *   `number.ringtone_pause`: Pause zwischen den Wiederholungen (in ms).
+*   **Batterie-Alarm:**
+    *   `number.low_battery_threshold`: Schwellwert in Prozent (5-50%), ab dem die 4. LED rot pulsiert.
 
 ### Sensoren
 
@@ -86,7 +88,11 @@ Das Gerät stellt folgende Sensoren in Home Assistant bereit:
 *   `sensor.phone_temperature`
 *   `sensor.phone_humidity`
 *   `sensor.phone_pressure`
-*   `sensor.battery_voltage`
+*   `sensor.battery_level` (in %)
+*   `sensor.battery_voltage` (in V)
+*   `sensor.moving_target_distance` (Radar)
+*   `sensor.still_target_distance` (Radar)
+*   `sensor.detection_distance` (Radar)
 
 ### Events
 
