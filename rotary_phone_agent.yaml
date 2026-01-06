@@ -4,6 +4,11 @@ esphome:
   min_version: 2024.7.0
   platformio_options:
     board_build.flash_mode: dio
+    # LilyGO T7-S3 16MB Flash / 8MB PSRAM Specifics
+    board_build.arduino.memory_type: qio_opi
+    board_build.partitions: default_16MB.csv
+    build_flags:
+      - "-DBOARD_HAS_PSRAM"
 
 esp32:
   board: esp32-s3-devkitc-1
@@ -148,6 +153,17 @@ voice_assistant:
     - script.stop: led_blink_red
     - light.turn_off: button_leds
 
+# Deep Sleep Configuration
+# Optional: Aktivieren, um Strom zu sparen. Aufwachen durch Hörer (GPIO1), Tasten oder IMU.
+# deep_sleep:
+#   run_duration: 60s
+#   sleep_duration: 10min
+#   wakeup_pin:
+#     number: GPIO1 # Hörer abnehmen weckt auf
+#     inverted: true
+#     mode: INPUT_PULLUP
+
+
 # Button LEDs
 light:
   - platform: esp32_rmt_led_strip
@@ -171,60 +187,84 @@ esp32_ble_tracker:
 bluetooth_proxy:
   active: true
 
-# I2C Bus für Sensoren (BME280)
+# I2C Bus für Sensoren (BME280, BNO055, DRV2605L)
 i2c:
   sda: GPIO8
   scl: GPIO9
   scan: true
   id: bus_a
 
-# UART für DFPlayer Mini
+# Haptic Driver (DRV2605L) für "Silent Ring" & Vibrations-Feedback
+# Adresse ist meist 0x5A. Wir nutzen LRA Mode (Linear Resonant Actuator).
+haptic:
+  - platform: drv2605
+    id: haptic_motor
+    i2c_id: bus_a
+    mode: LRA 
+    library: LRA_LIBRARY # Spezifische Library für LRA Motoren
+    standby_time: 1ms
+
+# UART für Audio (DY-SV17F)
 uart:
   - id: uart_bus_dfplayer
     tx_pin: GPIO43
     rx_pin: GPIO44
     baud_rate: 9600
 
-  - id: uart_bus_radar
-    tx_pin: GPIO39 # ESP TX -> Radar RX
-    rx_pin: GPIO38 # ESP RX <- Radar TX
-    baud_rate: 256000
-    parity: NONE
-    stop_bits: 1
+# OPTIONAL: UART für Radar (LD2410)
+#  - id: uart_bus_radar
+#    tx_pin: GPIO39 # ESP TX -> Radar RX
+#    rx_pin: GPIO38 # ESP RX <- Radar TX
+#    baud_rate: 256000
+#    parity: NONE
+#    stop_bits: 1
 
-# DFPlayer Mini für Klingeltöne und Sounds
-# Ordnerstruktur auf SD-Karte:
-# /01/001.mp3 -> Klingelton
-# /02/001.mp3 -> Klick-Geräusch (Wählscheibe)
-# /02/002.mp3 -> Hook Flash Feedback
-dfplayer:
-  uart_id: uart_bus_dfplayer
-  on_finished_playback:
-    - logger.log: "DFPlayer playback finished"
+# DFPlayer wurde durch DY-SV17F (4MB Flash) ersetzt.
+# Ansteuerung erfolgt nun direkt via UART Bytes.
+# Dateisystem auf dem Flash:
+# 00001.mp3 -> Klingelton
+# 00002.mp3 -> Klick-Geräusch (Wählscheibe)
+# 00003.mp3 -> Hook Flash Feedback / error
 
-ld2410:
-  uart_id: uart_bus_radar
+# OPTIONAL: Radar Sensor (LD2410)
+# ld2410:
+#   uart_id: uart_bus_radar
 
 #  Sensors
 sensor:
-  - platform: bme280_i2c
-    i2c_id: bus_a
-    address: 0x76 # Prüfen: 0x76 oder 0x77
-    temperature:
-      name: "Phone Temperature"
-    humidity:
-      name: "Phone Humidity"
-    pressure:
-      name: "Phone Pressure"
-    update_interval: 60s
+  # OPTIONAL: Environment Sensor (BME280)
+#  - platform: bme280_i2c
+#    i2c_id: bus_a
+#    address: 0x76 # Prüfen: 0x76 oder 0x77
+#    temperature:
+#      name: "Phone Temperature"
+#    humidity:
+#      name: "Phone Humidity"
+#    pressure:
+#      name: "Phone Pressure"
+#    update_interval: 60s
 
-  - platform: ld2410
-    moving_distance:
-      name: "Moving Target Distance"
-    still_distance:
-      name: "Still Target Distance"
-    detection_distance:
-      name: "Detection Distance"
+  # OPTIONAL: Radar Distances
+#  - platform: ld2410
+#    moving_distance:
+#      name: "Moving Target Distance"
+#    still_distance:
+#      name: "Still Target Distance"
+#    detection_distance:
+#      name: "Detection Distance"
+
+  # OPTIONAL: IMU & Shake-to-Wake (BNO055)
+  # Connect BNO055 INT pin to a GPIO (e.g., GPIO3) for wakeup
+#  - platform: bno055
+#    i2c_id: bus_a
+#    address: 0x28
+#    accel_x:
+#      name: "IMU Accel X"
+#    accel_y:
+#      name: "IMU Accel Y"
+#    accel_z:
+#      name: "IMU Accel Z"
+#    update_interval: 5s
 
   - platform: adc
     pin: GPIO4 # GPIO4 ist ADC1_CH3.
@@ -304,7 +344,7 @@ globals:
     type: std::string
     restore_value: no
     initial_value: '""'
-  - id: dial_timeout_ms
+  - id: dial_string_timeout_ms
     type: int
     restore_value: yes
     initial_value: '3000'
@@ -326,17 +366,36 @@ number:
     restore_value: true
 
   - platform: template
-    name: "Rotary Phone Dial Timeout"
-    id: rotary_phone_dial_timeout
+    name: "Rotary Phone String Timeout"
+    id: rotary_phone_string_timeout
     unit_of_measurement: "ms"
     min_value: 500
     max_value: 10000
     step: 100
-    lambda: 'return id(dial_timeout_ms);'
+    lambda: 'return id(dial_string_timeout_ms);'
     set_action:
       - globals.set:
-          id: dial_timeout_ms
+          id: dial_string_timeout_ms
           value: !lambda 'return x;'
+
+  - platform: template
+    name: "Phone Volume"
+    id: phone_volume
+    icon: "mdi:volume-high"
+    min_value: 0
+    max_value: 30
+    step: 1
+    initial_value: 20
+    optimistic: true
+    restore_value: true
+    set_action:
+      - lambda: |-
+          uint8_t vol = (uint8_t)x;
+          uint8_t cmd[] = {0xAA, 0x13, 0x01, vol};
+          uint8_t sum = 0;
+          for(int i=0; i<4; i++) sum += cmd[i];
+          id(uart_bus_dfplayer).write_array(cmd, 4);
+          id(uart_bus_dfplayer).write(sum);
 
   - platform: template
     name: "Ringtone Count"
@@ -372,6 +431,13 @@ number:
 
 switch:
   - platform: template
+    name: "Haptic Ringing"
+    id: haptic_ringing
+    icon: "mdi:vibrate"
+    restore_mode: RESTORE_DEFAULT_ON
+    optimistic: true
+
+  - platform: template
     name: "Rotary Phone Multi-Digit Mode"
     id: rotary_phone_multi_digit_mode
     optimistic: true
@@ -386,8 +452,39 @@ switch:
       - script.execute: flush_dialed_number
 
 
+button:
+  - platform: restart
+    id: sys_restart
+    name: "System Restart"
+
 # Skripte
 script:
+  # Hilfsskript für DY-SV17F Modul (Play by File Number)
+  # Befehl: AA 07 02 High Low SM
+  # SM = Summe(AA+07+02+High+Low) & 0xFF
+  # Datasheet: https://raw.githubusercontent.com/tasmota/docs/master/docs/_media/DY-SV17F_datasheet.pdf
+  # Docs Collection: https://github.com/smoluks/DY-SV17F (UART Mode Guide, etc.)
+  # UART Guide: https://arduino.ua/files/UART%20mode%20user_s%20guide.pdf
+  - id: play_mp3
+    parameters:
+      file_num: int
+    then:
+      - lambda: |-
+          uint8_t high = (file_num >> 8) & 0xFF;
+          uint8_t low = file_num & 0xFF;
+          uint8_t cmd[] = {0xAA, 0x07, 0x02, high, low};
+          uint8_t sum = 0;
+          for(int i=0; i<5; i++) sum += cmd[i];
+          id(uart_bus_dfplayer).write_array(cmd, 5);
+          id(uart_bus_dfplayer).write(sum);
+
+  # Hilfsskript Stop
+  - id: stop_mp3
+    then:
+      - uart.write: 
+          id: uart_bus_dfplayer
+          data: [0xAA, 0x04, 0x00, 0xAE]
+
   # Skript zum Verarbeiten der gewählten Ziffer
   - id: flush_dialed_number
     then:
@@ -395,13 +492,21 @@ script:
           condition:
             lambda: 'return id(dialed_number_buffer).length() > 0;'
           then:
-            - homeassistant.event:
-                event: esphome.rotary_phone_dial_string
-                data_template:
-                  number: !lambda 'return id(dialed_number_buffer);'
-            - logger.log: 
-                format: "Dialed String sent: %s"
-                args: [ 'id(dialed_number_buffer).c_str()' ]
+            # Magic Codes (Multi-Digit Mode)
+            - if:
+                condition:
+                   lambda: 'return id(dialed_number_buffer) == "999";'
+                then:
+                   - logger.log: "Magic Code 999: System Reboot"
+                   - button.press: sys_restart
+                else:
+                   - homeassistant.event:
+                       event: esphome.rotary_phone_dial_string
+                       data_template:
+                         number: !lambda 'return id(dialed_number_buffer);'
+                   - logger.log: 
+                       format: "Dialed String sent: %s"
+                       args: [ 'id(dialed_number_buffer).c_str()' ]
             - globals.set:
                 id: dialed_number_buffer
                 value: '""'
@@ -409,7 +514,7 @@ script:
   - id: flush_dialed_number_timer
     mode: restart
     then:
-      - delay: !lambda 'return id(dial_timeout_ms);'
+      - delay: !lambda 'return id(dial_string_timeout_ms);'
       - script.execute: flush_dialed_number
 
   - id: led_blink_blue
@@ -519,8 +624,6 @@ script:
   - id: process_dialed_digit
     mode: restart
     then:
-      # Wartezeit (Inter-Digit Timeout)
-      - delay: 600ms
       - logger.log:
           format: "Wählscheibe: %d Impulse gezählt"
           args: [ 'id(dial_pulse_count)' ]
@@ -530,36 +633,16 @@ script:
           id: last_dialed_digit
           state: !lambda 'return (id(dial_pulse_count) == 10) ? 0 : id(dial_pulse_count);'
 
-      # Logik-Weiche: Musiksteuerung vs. Home Assistant Event
       - if:
           condition:
-            # Prüfen, ob der Sockel-Lautsprecher gerade spielt
-            media_player.is_playing: media_player_base
+            lambda: 'return id(dial_pulse_count) > 0;'
           then:
-            # MODUS: LAUTSTÄRKE REGELN
-            - logger.log: "Musik läuft - Ändere Lautstärke"
-            - media_player.volume_set:
-                id: media_player_base
-                # 1 Impuls = 10%, 5 = 50%, 10 (0) = 100%
-                volume: !lambda 'return (id(dial_pulse_count) * 0.1);'
-            # Kurzes visuelles Feedback (Blau aufblitzen)
-            - light.turn_on: button_leds
-            - light.addressable_set:
-                id: button_leds
-                range_from: 0
-                range_to: 4
-                red: 0%
-                green: 0%
-                blue: 100%
-            - delay: 200ms
-            - light.turn_off: button_leds
-          
-          else:
-            # MODUS: STANDARD EVENT
             - if:
                 condition:
-                  lambda: 'return id(dial_pulse_count) > 0;'
+                  lambda: 'return id(dial_pulse_count) > 20;'
                 then:
+                  - logger.log: "Ghost pulse detected (Count > 20), ignoring."
+                else:
                   - if:
                       condition:
                         lambda: 'return id(multi_digit_mode);'
@@ -572,11 +655,19 @@ script:
                         - script.stop: flush_dialed_number_timer
                         - script.execute: flush_dialed_number_timer
                       else:
-                        # SINGLE DIGIT MODE (Original behavior)
-                        - homeassistant.event:
-                            event: esphome.rotary_phone_dial
-                            data_template:
-                              digit: !lambda 'return (id(dial_pulse_count) == 10) ? 0 : id(dial_pulse_count);'
+                        # SINGLE DIGIT MODE (Standard)
+                        # Magic Code: 0 -> Start Voice Assistant Manual
+                        - if:
+                            condition:
+                              lambda: 'return (id(dial_pulse_count) == 10);'
+                            then:
+                              - logger.log: "Magic Code 0: Starting Voice Assistant"
+                              - voice_assistant.start:
+                            else:
+                              - homeassistant.event:
+                                  event: esphome.rotary_phone_dial
+                                  data_template:
+                                    digit: !lambda 'return (id(dial_pulse_count) == 10) ? 0 : id(dial_pulse_count);'
       
       # Zähler zurücksetzen
       - globals.set:
@@ -595,11 +686,37 @@ script:
                 condition:
                   binary_sensor.is_on: phone_hook
                 then:
-                  - dfplayer.play_folder:
-                      folder: 1
-                      file: 1
+                  # Audio abspielen (wenn Volume > 0)
+                  - if:
+                      condition:
+                         lambda: 'return id(phone_volume).state > 0;'
+                      then:
+                        - script.execute:
+                            id: play_mp3
+                            file_num: 1 # 00001.mp3
+                  
+                  # Haptic Feedback (wenn aktiviert) -> Simuliert mechanische Glocke
+                  - if:
+                      condition:
+                        switch.is_on: haptic_ringing
+                      then:
+                         # Effekt 1: Strong Click 100% (mehrmals feuern für Ratter-Effekt)
+                         # Wir feuern eine kleine Salve ab, synchron zum Audio
+                         - repeat:
+                             count: 15 # Anzahl der Vibrationen pro "Ring"
+                             then:
+                               - haptic.play:
+                                   id: haptic_motor
+                                   effect: DELAY_50MS # Kurze Pause (Effekt-ID 0 gibt es nicht direkt als Enum, wir nutzen play)
+                               - haptic.play:
+                                   id: haptic_motor
+                                   effect: STRONG_CLICK_100
+                               - delay: 50ms # Taktrate des Ratterns
+
                   # Wartezeit = Länge des Klingeltons + Pause
-                  - delay: !lambda 'return id(ring_duration).state;'
+                  # (Achtung: Die Haptic-Loop oben blockiert delayfrei, 
+                  #  aber wir haben delay:50ms * 15 = 750ms "verbraucht")
+                  - delay: !lambda 'return (id(ring_duration).state - 750 < 0) ? 0 : (id(ring_duration).state - 750);'
                   - delay: !lambda 'return id(ring_pause).state;'
                 else:
                   - script.stop: ring_phone
@@ -692,10 +809,10 @@ binary_sensor:
             - logger.log: "Hook Flash detected"
             - homeassistant.event:
                 event: esphome.rotary_phone_flash
-            # Lokales Feedback (Doppel-Piep) via DFPlayer
-            - dfplayer.play_folder:
-                folder: 2
-                file: 2
+            # Lokales Feedback (Doppel-Piep)
+            - script.execute:
+                id: play_mp3
+                file_num: 3 # 00003.mp3
           else:
             # Normales Abnehmen -> Stop Media & Start Listening
             - if:
@@ -777,20 +894,34 @@ binary_sensor:
           data:
             button: "3"
   
-  # Taste 4
+  # Rotary Dial Active (Wählscheibe dreht sich)
+  # Ersetzt Speed Dial 4 (GPIO13)
+  # Ruhe = 0, Aktiv = 1
   - platform: gpio
     pin:
       number: GPIO13
-      mode: INPUT_PULLUP
-    name: "Speed Dial 4"
+      mode: INPUT_PULLDOWN
+    name: "Rotary Dial Active"
+    id: rotary_active
     filters:
-      - delayed_on: 50ms
-      - delayed_off: 50ms
+      - delayed_on: 10ms
+      - delayed_off: 10ms
     on_press:
-      - homeassistant.event:
-          event: esphome.rotary_phone_button
-          data:
-            button: "4"
+      then:
+        # Start des Wählvorgangs -> Zähler reset
+        - globals.set:
+            id: dial_pulse_count
+            value: '0'
+        # Assistenten/Musik stoppen, damit man in Ruhe wählen kann
+        - voice_assistant.stop:
+        # Freizeichen stoppen (falls wir eines implementieren)
+        # - dfplayer.stop
+        - logger.log: "Dialing started..."
+    on_release:
+      then:
+        # Ende des Wählvorgangs (Ziffer fertig) -> Verarbeiten
+        - logger.log: "Dialing finished."
+        - script.execute: process_dialed_digit
 
   # Rotary Dial (Wählscheibe) - Impuls-Pin
   # Wir nutzen binary_sensor statt pulse_counter für bessere Kontrolle und Entprellung
@@ -806,15 +937,15 @@ binary_sensor:
       - delayed_off: 10ms
     on_press:
       then:
-        # Akustisches Feedback (Klick) lokal via DFPlayer
-        - dfplayer.play_folder:
-            folder: 2
-            file: 1
+        # Akustisches Feedback (Klick) lokal
+        - script.execute:
+            id: play_mp3
+            file_num: 2 # 00002.mp3
         # Zähler erhöhen
         - globals.set:
             id: dial_pulse_count
             value: !lambda 'return id(dial_pulse_count) + 1;'
-        # Timer neu starten (wartet auf Ende der Impulsfolge)
-        - script.execute: process_dialed_digit
+        # Timer (process_dialed_digit) wird hier NICHT mehr gestartet, 
+        # das übernimmt jetzt der Rotary Dial Active Sensor (GPIO13 Release)
 
 # End of file

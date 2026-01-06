@@ -26,7 +26,8 @@ Ein ESPHome-basiertes Projekt, das ein altes Wählscheibentelefon in einen moder
     *   **Achtung:** Polarität des JST 1.25mm Steckers vor Anschluss prüfen!
 *   **Audio Hörer:** I2S Mikrofon (z.B. INMP441) & I2S Verstärker (z.B. MAX98357A)
 *   **Audio Sockel:** Zweiter I2S Verstärker (z.B. MAX98357A) für Musik
-*   **Audio Sounds:** DFPlayer Mini für Klingeltöne und Klick-Geräusche (eigener Lautsprecher empfohlen)
+*   **Audio Sounds:** DY-SV17F (4MB Flash) für Klingeltöne und Klick-Geräusche (UART Steuerung)
+*   **Haptic Feedback:** DRV2605L Treiber mit LRA Motor für "Silent Ring" und Vibrations-Effekte.
 *   **Sensoren:**
     *   **BME280:** Temperatur, Feuchtigkeit, Druck
     *   **LD2410:** Radar-Präsenzerkennung (Moving/Still Target)
@@ -51,8 +52,8 @@ Ein ESPHome-basiertes Projekt, das ein altes Wählscheibentelefon in einen moder
 | | Schnellwahl 4 | GPIO 13 |
 | | Wählscheibe (Impuls) | GPIO 14 |
 | **Ausgabe** | WS2812B LEDs (Data) | GPIO 2 |
-| | DFPlayer TX | GPIO 43 |
-| | DFPlayer RX | GPIO 44 |
+| | Audio Module TX (DY-SV17F) | GPIO 43 |
+| | Audio Module RX (DY-SV17F) | GPIO 44 |
 | **Sensoren (I2C)** | SDA (Data) | GPIO 8 |
 | | SCL (Clock) | GPIO 9 |
 | **Sensoren (UART)** | Radar TX (an ESP RX) | GPIO 38 |
@@ -81,6 +82,22 @@ Folgende Entitäten stehen zur Verfügung, um das Verhalten des Telefons anzupas
     *   `number.ringtone_pause`: Pause zwischen den Wiederholungen (in ms).
 *   **Batterie-Alarm:**
     *   `number.low_battery_threshold`: Schwellwert in Prozent (5-50%), ab dem die 4. LED rot pulsiert.
+
+### Weitere Einstellungen
+*   **Lautstärke:**
+    *   `number.phone_volume`: Setzt die Lautstärke des DY-SV17F Moduls (0-30).
+    *   Setze auf `0`, um das Telefon stumm zu schalten (nur Vibration).
+*   **Haptic Feedback:**
+    *   `switch.haptic_ringing`: Aktiviert/Deaktiviert die Vibration beim Klingeln.
+
+### Magic Codes
+
+Das Telefon verfügt über integrierte Sonderfunktionen, die lokal ausgeführt werden:
+
+*   **Im Standard-Modus (Single Digit):**
+    *   Wähle `0`: Startet den Sprachassistenten manuell (Alternative zum Hörer abnehmen).
+*   **Im Multi-Digit Modus:**
+    *   Wähle `999`: Startet den ESP32 neu (Reboot).
 
 ### Sensoren
 
@@ -144,10 +161,25 @@ Erstelle eine Automation, die auf Änderungen von `sensor.rotary_phone_agent_are
 2.  Projekt mit ESPHome kompilieren und auf den ESP32-S3 flashen.
 3.  In Home Assistant integrieren.
 
-### SD-Karte für DFPlayer Mini
+### Energiesparen (Deep Sleep)
 
-Die SD-Karte muss FAT32 formatiert sein. Erstelle folgende Ordnerstruktur:
+Standardmäßig ist der Deep Sleep deaktiviert. Er kann in der YAML-Konfiguration aktiviert werden, um den Akku zu schonen.
+Das Telefon wacht automatisch auf, wenn:
+1.  Der Hörer abgenommen wird (GPIO1).
+2.  Eine Schnellwahltaste gedrückt wird.
 
-*   `/01/001.mp3`: Klingelton
-*   `/02/001.mp3`: Klick-Geräusch (Wählscheibe)
-*   `/02/002.mp3`: Hook Flash Feedback (Doppel-Piep)
+*(Hinweis: Der ursprünglich geplante IMU-Shake-to-Wake Ansatz wurde verworfen, da die Hörer-Logik zuverlässiger und stromsparender ist.)*
+
+### Audio Dateien (DY-SV17F)
+
+Das Modul nutzt einen internen 4MB Flash-Speicher. Schließe das Modul per USB an den PC an und kopiere die Dateien **einzeln nacheinander** in dieser Reihenfolge auf das Laufwerk (FAT/FAT32 formatiert):
+
+1.  `00001.mp3`: Klingelton
+2.  `00002.mp3`: Klick-Geräusch (Wählscheibe)
+3.  `00003.mp3`: Hook Flash Feedback (Doppel-Piep)
+
+**Wichtig:** Das Modul orientiert sich nicht an den Dateinamen, sondern an der physischen Speicherreihenfolge!
+
+**Dokumentation:**
+*   [DY-SV17F Datasheet & Docs Collection](https://github.com/smoluks/DY-SV17F)
+*   [UART Mode User's Guide (PDF)](https://arduino.ua/files/UART%20mode%20user_s%20guide.pdf)
