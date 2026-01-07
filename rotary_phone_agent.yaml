@@ -187,21 +187,19 @@ esp32_ble_tracker:
 bluetooth_proxy:
   active: true
 
-# I2C Bus für Sensoren (BME280, BNO055, DRV2605L)
+# I2C Bus für Sensoren (BME280, BNO055)
 i2c:
   sda: GPIO8
   scl: GPIO9
   scan: true
   id: bus_a
 
-# Haptic Driver (DRV2605L) für "Silent Ring" & Vibrations-Feedback
-# Adresse ist meist 0x5A. Wir nutzen LRA Mode (Linear Resonant Actuator).
-drv2605:
-  - id: haptic_motor
-    i2c_id: bus_a
-    mode: LRA 
-    library: LRA_LIBRARY # Spezifische Library für LRA Motoren
-    standby_time: 1ms
+# Vibration Motor (klassisch, via Transistor, aktiv HIGH)
+output:
+  - platform: gpio
+    id: vibration_motor
+    pin: GPIO21 # Anpassen falls Pin anders verdrahtet ist
+    inverted: false
 
 # UART für Audio (DY-SV17F)
 uart:
@@ -694,23 +692,18 @@ script:
                             id: play_mp3
                             file_num: 1 # 00001.mp3
                   
-                  # Haptic Feedback (wenn aktiviert) -> Simuliert mechanische Glocke
+                  # Vibration Motor (über Transistor)
                   - if:
                       condition:
                         switch.is_on: haptic_ringing
                       then:
-                         # Effekt 1: Strong Click 100% (mehrmals feuern für Ratter-Effekt)
-                         # Wir feuern eine kleine Salve ab, synchron zum Audio
-                         - repeat:
-                             count: 15 # Anzahl der Vibrationen pro "Ring"
-                             then:
-                               - drv2605.play:
-                                   id: haptic_motor
-                                   effect: DELAY_50MS # Kurze Pause (Effekt-ID 0 gibt es nicht direkt als Enum, wir nutzen play)
-                               - drv2605.play:
-                                   id: haptic_motor
-                                   effect: STRONG_CLICK_100
-                               - delay: 50ms # Taktrate des Ratterns
+                        - repeat:
+                            count: 15 # Anzahl der Vibrationen pro "Ring"
+                            then:
+                              - output.turn_on: vibration_motor
+                              - delay: 40ms
+                              - output.turn_off: vibration_motor
+                              - delay: 10ms
 
                   # Wartezeit = Länge des Klingeltons + Pause
                   # (Achtung: Die Haptic-Loop oben blockiert delayfrei, 
