@@ -23,7 +23,7 @@ debug:
 
 # Enable Home Assistant API
 api:
-  reboot_timeout: 15min
+  reboot_timeout: 5min
   services:
     - service: start_find_my_phone
       then:
@@ -48,8 +48,8 @@ wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
 
-  # Reboot if no wifi connection for 15 minutes
-  reboot_timeout: 15min
+  # Reboot if no wifi connection for 5 minutes
+  reboot_timeout: 5min
 
   # Enable fallback hotspot (captive portal) in case wifi connection fails
   ap:
@@ -196,9 +196,8 @@ i2c:
 
 # Haptic Driver (DRV2605L) für "Silent Ring" & Vibrations-Feedback
 # Adresse ist meist 0x5A. Wir nutzen LRA Mode (Linear Resonant Actuator).
-haptic:
-  - platform: drv2605
-    id: haptic_motor
+drv2605:
+  - id: haptic_motor
     i2c_id: bus_a
     mode: LRA 
     library: LRA_LIBRARY # Spezifische Library für LRA Motoren
@@ -705,10 +704,10 @@ script:
                          - repeat:
                              count: 15 # Anzahl der Vibrationen pro "Ring"
                              then:
-                               - haptic.play:
+                               - drv2605.play:
                                    id: haptic_motor
                                    effect: DELAY_50MS # Kurze Pause (Effekt-ID 0 gibt es nicht direkt als Enum, wir nutzen play)
-                               - haptic.play:
+                               - drv2605.play:
                                    id: haptic_motor
                                    effect: STRONG_CLICK_100
                                - delay: 50ms # Taktrate des Ratterns
