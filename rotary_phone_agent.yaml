@@ -325,6 +325,7 @@ sensor:
     id: last_dialed_digit
     icon: "mdi:dialpad"
     accuracy_decimals: 0
+    force_update: true
 
 # Globale Variablen
 globals:
