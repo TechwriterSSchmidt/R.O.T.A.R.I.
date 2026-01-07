@@ -11,6 +11,7 @@ esphome:
 
 esp32:
   board: esp32-s3-devkitc-1
+  flash_size: 16MB
   partitions: default_16MB.csv
   framework:
     type: arduino
@@ -892,7 +893,8 @@ binary_sensor:
   - platform: gpio
     pin:
       number: GPIO13
-      mode: INPUT_PULLDOWN
+      mode: INPUT_PULLUP
+      inverted: true
     name: "Rotary Dial Active"
     id: rotary_active
     filters:
@@ -921,6 +923,7 @@ binary_sensor:
     pin: 
       number: GPIO14
       mode: INPUT_PULLUP
+      inverted: true
     name: "Rotary Dial Pulse"
     id: rotary_pulse
     filters:
