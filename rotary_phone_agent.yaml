@@ -6,12 +6,12 @@ esphome:
     board_build.flash_mode: dio
     # LilyGO T7-S3 16MB Flash / 8MB PSRAM Specifics
     board_build.arduino.memory_type: qio_opi
-    board_build.partitions: default_16MB.csv
     build_flags:
       - "-DBOARD_HAS_PSRAM"
 
 esp32:
   board: esp32-s3-devkitc-1
+  partitions: default_16MB.csv
   framework:
     type: arduino
 
