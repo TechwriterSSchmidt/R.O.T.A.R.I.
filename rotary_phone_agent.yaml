@@ -460,6 +460,12 @@ switch:
     optimistic: true
 
   - platform: template
+    name: "Do Not Disturb"
+    id: dnd_mode
+    icon: "mdi:minus-circle"
+    optimistic: true
+
+  - platform: template
     name: "Haptic Ringing"
     id: haptic_ringing
     icon: "mdi:vibrate"
@@ -893,23 +899,37 @@ binary_sensor:
 
   # Speed Dial Buttons & Functions
   
-  # Button 1: Battery Level Indicator
+  # Button 1: System Control
   - platform: gpio
     pin:
       number: ${pin_button_1}
       mode: INPUT_PULLUP
       inverted: true
-    name: "Button 1 (Battery)"
+    name: "Button 1 (System)"
     filters:
-      - delayed_on: 50ms
-      - delayed_off: 50ms
-    on_press:
-      then:
-        - light.turn_on:
-            id: button_leds
-            effect: "Battery Level"  
-        - delay: 3s
-        - light.turn_off: button_leds
+      - delayed_on: 10ms
+      - delayed_off: 10ms
+    on_click:
+      - min_length: 50ms
+        max_length: 500ms
+        then:
+          - switch.toggle: dnd_mode
+          - if:
+              condition:
+                 switch.is_on: dnd_mode
+              then:
+                 - logger.log: "DND Enabled"
+                 # Optional Red Flash?
+              else:
+                 - logger.log: "DND Disabled"
+      - min_length: 2000ms
+        max_length: 10000ms
+        then:
+          - light.turn_on:
+               id: button_leds
+               effect: "Battery Level"
+          - delay: 3s
+          - light.turn_off: button_leds
 
   # Button 2: Custom Action (HA)
   - platform: gpio
@@ -919,37 +939,29 @@ binary_sensor:
       inverted: true
     name: "Button 2 (Action)"
     filters:
-      - delayed_on: 50ms
-      - delayed_off: 50ms
+      - delayed_on: 15ms
+      - delayed_off: 15ms
     on_press:
       - homeassistant.event:
            event: esphome.rotary_phone_button
            data:
              button: "2"
 
-  # Button 3: Speakerphone Mode
+  # Button 3: Custom Action (HA)
   - platform: gpio
     pin:
       number: ${pin_button_3}
       mode: INPUT_PULLUP
       inverted: true
-    name: "Button 3 (Speakerphone)"
+    name: "Button 3 (Action)"
     filters:
-      - delayed_on: 50ms
-      - delayed_off: 50ms
+      - delayed_on: 15ms
+      - delayed_off: 15ms
     on_press:
-      then:
-        - switch.toggle: speaker_mode
-        # Visual feedback: Flash LED 3 logic?
-        # The switch state itself can drive an effect or HA logic
-        - if:
-            condition:
-              switch.is_on: speaker_mode
-            then:
-              - logger.log: "Speakerphone ON"
-              # Optional: Pulse blue or similar if desired.
-            else:
-              - logger.log: "Speakerphone OFF"
+      - homeassistant.event:
+           event: esphome.rotary_phone_button
+           data:
+             button: "3"
 
   # Button 4: Custom Action (Home Assistant)
   - platform: gpio
@@ -959,8 +971,8 @@ binary_sensor:
       inverted: true
     name: "Button 4 (Action)"
     filters:
-      - delayed_on: 50ms
-      - delayed_off: 50ms
+      - delayed_on: 15ms
+      - delayed_off: 15ms
     # Sends binary_sensor event to HA automatically
     on_press:
       - homeassistant.event:

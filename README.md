@@ -13,9 +13,10 @@ An ESPHome-based firmware that transforms a vintage rotary phone into a modern, 
 *   **Push-to-Talk / Dial-to-Talk:** Picking up plays the dial tone. Dialing '0' connects to the Voice Assistant.
 *   **Visual Feedback:** Keys light up Green when listening, Blue when processing, and Red on error.
 *   **Acoustic Feedback:** Ringtones via DY-SV17F MP3 module (Base) and synthesized tones via I2S (Handset).
-*   **Rotary Dial:** sends events to Home Assistant for automation.
-*   **Speed Dial Buttons:** 4 configurable buttons for custom actions.
-    *   **Button 1 (Long Press):** Toggles Microphone Mute. (LED 1 pulses purple). Hanging up resets mute.
+*   **Rotary Dial:** sends events to Home Assistant for automation. Includes robust software debouncing (15ms) for reliable digit detection.
+*   **Speed Dial Buttons:** 4 configurable buttons.
+    *   **Button 1:** System controls (Battery Check & Do Not Disturb).
+    *   **Buttons 2-4:** Send events to Home Assistant for custom actions.
 *   **Sensors:** supports BME280 (Temp/Hum/Press) and LD2410 (Radar Presence).
 *   **Room Tracking:** Bluetooth proxy enabled for room presence via Bermuda/ESPresense.
 *   **Find My Phone:** Visual alarm mode if device is misplaced.
@@ -72,10 +73,10 @@ The 4 buttons on the device provide local control and visual feedback via the 4-
 
 | Button | Function | LED Feedback | Description |
 | :--- | :--- | :--- | :--- |
-| **1** | **Check Battery** | **Bar Graph** (3s) | Displays voltage level. <br>🔴 (<3.6V)<br>🟠 (>3.6V)<br>🟡 (>3.8V)<br>🟢 (>4.0V) |
-| **2** | **Custom Action** | **None** | Sends event to Home Assistant. <br>Can be used for Mute, Automation, etc. |
-| **3** | **Speakerphone** | **Status in HA** | Toggles "Speakerphone Mode" switch in Home Assistant. Useful for routing audio to base speaker. |
-| **4** | **Smart Home** | **None** | Sends event to Home Assistant for custom automation (e.g., Toggle Lights). |
+| **1** | **System** | **Bar Graph** (Long Press) | **Short Press:** Toggle "Do Not Disturb" (DND).<br>**Long Press (2s):** Show Battery Level. |
+| **2** | **Custom** | **None** | Sends event `button: "2"` to HA. |
+| **3** | **Custom** | **None** | Sends event `button: "3"` to HA. |
+| **4** | **Custom** | **None** | Sends event `button: "4"` to HA. |
 
 ### Voice Assistant Feedback
 
