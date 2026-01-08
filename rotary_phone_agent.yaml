@@ -77,10 +77,11 @@ api:
         - light.turn_off: button_leds
     - service: start_broadcast_notification
       then:
-        - script.execute: led_blink_yellow_broadcast
+        - light.turn_on:
+            id: button_leds
+            effect: "Broadcast Pulse"
     - service: stop_broadcast_notification
       then:
-        - script.stop: led_blink_yellow_broadcast
         - light.turn_off: button_leds
 
 # Enable OTA updates
@@ -168,40 +169,62 @@ voice_assistant:
               id: button_leds
               effect: "Mute Pulse"
         else:
-          - script.stop: led_blink_blue
-          - script.stop: led_blink_red
-          - light.turn_on: button_leds
+          - light.turn_on:
+              id: button_leds
+              effect: "none"
+          - light.addressable_set:
+              id: button_leds
+              range_from: 0
+              range_to: 1
+              red: 0%
+              green: 0%
+              blue: 0%
+          # Fade Green In
+          - light.addressable_set:
+              id: button_leds
+              range_from: 0
+              range_to: 1
+              red: 0%
+              green: 20%
+              blue: 0%
+          - delay: 100ms
+          - light.addressable_set:
+              id: button_leds
+              range_from: 0
+              range_to: 1
+              red: 0%
+              green: 60%
+              blue: 0%
+          - delay: 100ms
           - light.addressable_set:
               id: button_leds
               range_from: 0
               range_to: 1
               red: 0%
               green: 100%
-              blue: 0% # Green = Listening
+              blue: 0%
+
   on_stt_end:
-    - script.execute: led_blink_blue # Blink Blue = Processing
-  on_tts_start:
-    - script.stop: led_blink_blue
-    - light.addressable_set:
+    - light.turn_on: 
         id: button_leds
-        range_from: 0
-        range_to: 1
-        red: 0%
-        green: 0%
-        blue: 0% # Off during response
+        effect: "Thinking Pulse"
+
+  on_tts_start:
+    # Speaking - optionally dim or off. "Off to allow conversation"
+    - light.turn_off: button_leds
+
   on_end:
     # Busy Tone after call (425Hz, 480ms ON, 480ms OFF)
     - lambda: |-
         id(my_tone_gen).set_pulse_timing(480, 480);
         id(my_tone_gen).start_tone(425.0, true);
-    - script.stop: led_blink_blue
-    - script.stop: led_blink_red
     - light.turn_off: button_leds
+
   on_error:
-    - script.stop: led_blink_blue
-    - script.execute: led_blink_red # Blink Red = Error
+    - light.turn_on: 
+        id: button_leds
+        effect: "Error Pulse"
     - delay: 2s
-    - script.stop: led_blink_red
     - light.turn_off: button_leds
 
 # Button LEDs
@@ -214,27 +237,79 @@ light:
     name: "Button LEDs"
     id: button_leds
     restore_mode: ALWAYS_OFF
+    
+    # Simulates incandescent fading (Gamma/Tungsten)
+    default_transition_length: 0s 
+
     effects:
       - addressable_scan:
       
-      # Mute Pulse (Purple on LED 2)
+      # Mute Pulse (Purple on LED 2 - Index 1)
       - addressable_lambda:
           name: "Mute Pulse"
-          update_interval: 100ms
+          update_interval: 50ms # 20fps for smooth animation
           lambda: |-
             static float progress = 0.0;
-            static bool going_up = true;
-            if (going_up) progress += 0.1; else progress -= 0.1;
-            if (progress > 1.0) { progress = 1.0; going_up = false; }
-            if (progress < 0.2) { progress = 0.2; going_up = true; }
+            static float direction = 0.05;
             
+            // Sine-wave approximation for incandescent feel
+            progress += direction;
+            if (progress > 1.0) { progress = 1.0; direction = -0.05; }
+            if (progress < 0.1) { progress = 0.1; direction = 0.05; }
+            
+            float brightness = progress * progress; // Gamma correctionish
             it.all() = Color::BLACK;
-            // LED 2 (Index 1) pulsiert Purple
-            if (it.size() > 1) {
-              it[1] = Color(128, 0, 128) * progress; 
-            }
+            if (it.size() > 1) it[1] = Color(128, 0, 128) * brightness;
 
-      # Battery Level Indicator
+      # Thinking Pulse (Blue on LED 1 - Index 0)
+      - addressable_lambda:
+          name: "Thinking Pulse"
+          update_interval: 50ms
+          lambda: |-
+            static float progress = 0.0;
+            static float direction = 0.1;
+            
+            progress += direction;
+            if (progress > 1.0) { progress = 1.0; direction = -0.05; } // Fast on
+            if (progress < 0.0) { progress = 0.0; direction = 0.05; }  // Slow off
+            
+            float brightness = progress * progress; 
+            it.all() = Color::BLACK;
+            if (it.size() > 0) it[0] = Color(0, 0, 255) * brightness;
+
+      # Error Pulse (Red on LED 1 - Index 0)
+      - addressable_lambda:
+          name: "Error Pulse"
+          update_interval: 50ms
+          lambda: |-
+            static float progress = 0.0;
+            static float direction = 0.2; // Faster blink
+            
+            progress += direction;
+            if (progress > 1.0) { progress = 1.0; direction = -0.2; }
+            if (progress < 0.0) { progress = 0.0; direction = 0.2; }
+            
+            float brightness = progress * progress;
+            it.all() = Color::BLACK;
+            if (it.size() > 0) it[0] = Color(255, 0, 0) * brightness;
+
+      # Broadcast Pulse (Yellow on LED 4 - Index 3)
+      - addressable_lambda:
+          name: "Broadcast Pulse"
+          update_interval: 50ms
+          lambda: |-
+            static float progress = 0.0;
+            static float direction = 0.05;
+            
+            progress += direction;
+            if (progress > 1.0) { progress = 1.0; direction = -0.05; }
+            if (progress < 0.0) { progress = 0.0; direction = 0.05; }
+            
+            float brightness = progress * progress;
+            it.all() = Color::BLACK;
+            if (it.size() > 3) it[3] = Color(255, 200, 0) * brightness;
+
+      # Battery Level Indicator (Static with fade-in on start)
       - addressable_lambda:
           name: "Battery Level"
           update_interval: 500ms
@@ -551,79 +626,8 @@ script:
       - delay: !lambda 'return id(dial_string_timeout_ms);'
       - script.execute: flush_dialed_number
 
-  - id: led_blink_blue
-    mode: restart
-    then:
-      - while:
-          condition:
-            lambda: 'return true;'
-          then:
-            - light.addressable_set:
-                id: button_leds
-                range_from: 0
-                range_to: 1
-                red: 0%
-                green: 0%
-                blue: 100%
-            - delay: 500ms
-            - light.addressable_set:
-                id: button_leds
-                range_from: 0
-                range_to: 1
-                red: 0%
-                green: 0%
-                blue: 0%
-            - delay: 500ms
+  # Operator Simulation Script
 
-  - id: led_blink_red
-    mode: restart
-    then:
-      - while:
-          condition:
-            lambda: 'return true;'
-          then:
-            - light.addressable_set:
-                id: button_leds
-                range_from: 0
-                range_to: 1
-                red: 100%
-                green: 0%
-                blue: 0%
-            - delay: 300ms
-            - light.addressable_set:
-                id: button_leds
-                range_from: 0
-                range_to: 1
-                red: 0%
-                green: 0%
-                blue: 0%
-            - delay: 300ms
-
-  # Broadcast Notification (LED 4 blinks yellow)
-  - id: led_blink_yellow_broadcast
-    mode: restart
-    then:
-      - light.turn_on: button_leds
-      - while:
-          condition:
-            lambda: 'return true;'
-          then:
-            - light.addressable_set:
-                id: button_leds
-                range_from: 3
-                range_to: 4
-                red: 100%
-                green: 100%
-                blue: 0% # Yellow
-            - delay: 500ms
-            - light.addressable_set:
-                id: button_leds
-                range_from: 3
-                range_to: 4
-                red: 0%
-                green: 0%
-                blue: 0%
-            - delay: 500ms
 
   # Find My Phone Alarm
   - id: find_phone
