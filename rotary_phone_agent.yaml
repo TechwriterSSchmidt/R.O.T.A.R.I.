@@ -195,12 +195,12 @@ i2c:
   scan: true
   id: bus_a
 
-# Vibration Motor (klassisch, via Transistor, aktiv HIGH)
-output:
-  - platform: gpio
-    id: vibration_motor
-    pin: GPIO21 # Anpassen falls Pin anders verdrahtet ist
-    inverted: false
+# Haptic Motor Controller (DRV2605)
+drv2605:
+  i2c_id: bus_a
+  id: haptic_motor
+  vibrator_type: LRA
+  library: TS2200_F # Optimierte Library für LRA (Library 6)
 
 # UART für Audio (DY-SV17F)
 uart:
@@ -702,10 +702,11 @@ script:
                         - repeat:
                             count: 15 # Anzahl der Vibrationen pro "Ring"
                             then:
-                              - output.turn_on: vibration_motor
-                              - delay: 40ms
-                              - output.turn_off: vibration_motor
-                              - delay: 10ms
+                              - drv2605.set_waveform:
+                                  id: haptic_motor
+                                  effect: 1 # Strong Click
+                              - drv2605.go: haptic_motor
+                              - delay: 50ms
 
                   # Wartezeit = Länge des Klingeltons + Pause
                   # (Achtung: Die Haptic-Loop oben blockiert delayfrei, 
