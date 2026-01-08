@@ -89,13 +89,13 @@ The 4 buttons on the device provide local control and visual feedback via the 4-
 
 ## Required Sound Files
 
-The firmware controls a DY-SV17F MP3 module which requires specific filenames on the SD card (FAT32 formatted).
+The firmware controls a DY-SV17F MP3 module which requires specific filenames on the internal 4mb flash (FAT32 formatted).
 
 | Filename | Description | Usage |
 | :--- | :--- | :--- |
 | **`00001.mp3`** | **Ringtone** | Plays through the **Base Speaker** when the "Ring Phone" script is triggered. |
 
-> **Note:** The "Click/Tick" sounds for dialing and the "Hook Flash" signal are now generated electronically in the handset. Files `00002.mp3` and `00003.mp3` are no longer required on the SD card.
+> **Note:** The "Click/Tick" sounds for dialing and the "Hook Flash" signal are generated electronically in the handset.
 
 ## Getting Started
 
@@ -107,5 +107,6 @@ The firmware controls a DY-SV17F MP3 module which requires specific filenames on
 
 *   **Battery Thresholds:** Adjusted via "Low Battery Threshold" number entity in HA/Web UI.
 *   **Updates:** To update the ESPHome version, simply run the build command again.
+
 
 
