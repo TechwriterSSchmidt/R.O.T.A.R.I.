@@ -411,6 +411,17 @@ switch:
           value: 'false'
       - script.execute: flush_dialed_number
 
+select:
+  - platform: template
+    name: "Vibration Pattern"
+    id: vibration_pattern
+    options:
+      - "Silent / Classic"
+      - "Mechanical Bell"
+    optimistic: true
+    restore_value: true
+    initial_option: "Silent / Classic"
+    icon: "mdi:vibrate"
 
 button:
   - platform: restart
@@ -644,13 +655,25 @@ script:
                       condition:
                         switch.is_on: haptic_ringing
                       then:
-                        - repeat:
-                            count: 15 # Vibrations per ring
+                        - if:
+                            condition:
+                              lambda: 'return id(vibration_pattern).state == "Mechanical Bell";'
                             then:
-                              - drv2605.play_effect:
-                                  id: haptic_motor
-                                  effect: 1 # Strong Click
-                              - delay: 50ms
+                              - repeat:
+                                  count: 25 # Faster, more aggressive for Bell mechanics (Total ~750ms)
+                                  then:
+                                    - drv2605.play_effect:
+                                        id: haptic_motor
+                                        effect: 1 # Strong Click
+                                    - delay: 30ms
+                            else:
+                              - repeat:
+                                  count: 15 # Classic / Silent (Total ~750ms)
+                                  then:
+                                    - drv2605.play_effect:
+                                        id: haptic_motor
+                                        effect: 1 # Strong Click
+                                    - delay: 50ms
 
                   # Wait time compensations: ring_duration - actual_vibration_time
                   - delay: !lambda |-
