@@ -4,9 +4,15 @@ An ESPHome-based firmware that transforms a vintage rotary phone into a modern, 
 
 ## Features
 
-*   **Push-to-Talk:** Picking up the handset instantly starts the voice assistant (no wake word required).
+*   **Authentic "Vintage" Experience:**
+    *   **Dial Tone:** Generates a 425Hz sine wave (plus authentic wobbling and background noise) when the handset is lifted.
+    *   **Electronic Clicking:** Generates click sounds directly in the handset while dialing, simulating mechanical contacts.
+    *   **Operator Mode:** Dialing **'0'** simulates calling the operator. Depending on how long since the last call, you get a "Standard" or "Annoyed" response before the AI connects.
+    *   **Busy Signal:** Plays a busy tone after the call ends logic.
+    *   **Comfort Noise:** Injects subtle static noise during TTS playback to simulate an analog line.
+*   **Push-to-Talk / Dial-to-Talk:** Picking up plays the dial tone. Dialing '0' connects to the Voice Assistant.
 *   **Visual Feedback:** Keys light up Green when listening, Blue when processing, and Red on error.
-*   **Acoustic Feedback:** Authentic click sounds and ringtones via DY-SV17F MP3 module.
+*   **Acoustic Feedback:** Ringtones via DY-SV17F MP3 module (Base) and synthesized tones via I2S (Handset).
 *   **Rotary Dial:** sends events to Home Assistant for automation.
 *   **Speed Dial Buttons:** 4 configurable buttons for custom actions.
     *   **Button 1 (Long Press):** Toggles Microphone Mute. (LED 1 pulses purple). Hanging up resets mute.
@@ -19,9 +25,10 @@ An ESPHome-based firmware that transforms a vintage rotary phone into a modern, 
 ## Hardware Support
 
 *   **Controller:** LilyGO T7-S3 (ESP32-S3)
-*   **Audio:** Dual I2S Bus (Handset + Base Speaker)
-*   **Feedback:** DRV2605 LRA Haptic Driver (for silent ringing)
-*   **MP3:** DY-SV17F UART Module
+*   **Audio Base:** I2S Bus B -> DY-SV17F / Amplifier for loud Ringing.
+*   **Audio Handset:** I2S Bus A -> MAX98357A (Speaker) + INMP441 (Mic).
+*   **Feedback:** DRV2605 LRA Haptic Driver (for silent ringing).
+*   **MP3:** DY-SV17F UART Module (Ringtones).
 
 ## Project Structure
 
@@ -30,7 +37,8 @@ This project has been refactored for maintainability:
 *   **`rotary_phone_agent.yaml`**: Main configuration file.
     *   **Pin Definitions**: All GPIO assignments are defined in the `substitutions` block at the top.
     *   **Settings**: Timings and thresholds are available as variables/globals.
-*   **`src/rotary_helpers.h`**: Custom C++ helper functions (Battery logic, UART commands).
+*   **`src/rotary_helpers.h`**: Custom C++ helper functions (Battery logic, UART commands, Tone colors).
+*   **`components/vintage_tone_generator`**: Custom External Component. Handles the generation of synths (Dial/Busy tones), clicks, and noise injection into the I2S stream.
 *   **`components/drv2605`**: Custom or patched components.
 
 ## Pinout Configuration
@@ -60,11 +68,10 @@ The firmware controls a DY-SV17F MP3 module which requires specific filenames on
 
 | Filename | Description | Usage |
 | :--- | :--- | :--- |
-| **`00001.mp3`** | **Ringtone** | Plays when the "Ring Phone" script is triggered via Home Assistant. |
-| **`00002.mp3`** | **Click/Tick** | Plays on every pulse of the rotary dial (simulates mechanical sound). |
+| **`00001.mp3`** | **Ringtone** | Plays through the **Base Speaker** when the "Ring Phone" script is triggered. |
 | **`00003.mp3`** | **Signal Tone** | Plays on "Hook Flash" (hanging up and picking up quickly). |
 
-> **Note:** Ideally, `00002.mp3` should be a very short, crisp mechanical click sound to sound authentic during dialing.
+> **Note:** The "Click/Tick" sound (`00002.mp3`) is no longer required for dialing, as this is now generated electronically in the handset for zero latency.
 
 ## Getting Started
 
@@ -75,5 +82,5 @@ The firmware controls a DY-SV17F MP3 module which requires specific filenames on
 ## Maintenance
 
 *   **Battery Thresholds:** Adjusted via "Low Battery Threshold" number entity in HA/Web UI.
-*   **C++ Logic:** Core logic for battery and UART commands resides in `src/rotary_helpers.h`.
 *   **Updates:** To update the ESPHome version, simply run the build command again.
+
