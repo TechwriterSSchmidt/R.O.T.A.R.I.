@@ -812,10 +812,11 @@ binary_sensor:
             - logger.log: "Hook Flash detected"
             - homeassistant.event:
                 event: esphome.rotary_phone_flash
-            # Local Feedback
-            - script.execute:
-                id: play_mp3
-                file_num: 3 # 00003.wav / .mp3
+            # Local Feedback - Click and Restart Tone (Interrupt effect)
+            - lambda: |-
+                id(my_tone_gen).trigger_click();
+                // Restart dial tone to simulate interruption
+                id(my_tone_gen).start_tone(425.0);
           else:
             # Normal Pickup
             - if:
