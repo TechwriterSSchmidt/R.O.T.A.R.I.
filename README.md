@@ -54,6 +54,18 @@ You can easily change the pin assignments in `rotary_phone_agent.yaml` under `su
 | | MP3 TX | `pin_uart_tx` | 43 |
 | | MP3 RX | `pin_uart_rx` | 44 |
 
+## Required Sound Files
+
+The firmware controls a DY-SV17F MP3 module which requires specific filenames on the SD card (FAT32 formatted).
+
+| Filename | Description | Usage |
+| :--- | :--- | :--- |
+| **`00001.mp3`** | **Ringtone** | Plays when the "Ring Phone" script is triggered via Home Assistant. |
+| **`00002.mp3`** | **Click/Tick** | Plays on every pulse of the rotary dial (simulates mechanical sound). |
+| **`00003.mp3`** | **Signal Tone** | Plays on "Hook Flash" (hanging up and picking up quickly). |
+
+> **Note:** Ideally, `00002.mp3` should be a very short, crisp mechanical click sound to sound authentic during dialing.
+
 ## Getting Started
 
 1.  **Secrets:** Ensure you have a `secrets.yaml` with your `wifi_ssid` and `wifi_password`.
