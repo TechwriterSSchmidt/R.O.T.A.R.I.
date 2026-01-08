@@ -1,4 +1,4 @@
-# Rotary Phone Agent
+# RotaTalk
 
 An ESPHome-based firmware that transforms a vintage rotary phone into a modern, portable voice assistant for Home Assistant.
 
@@ -108,4 +108,5 @@ The firmware controls a DY-SV17F MP3 module which requires specific filenames on
 
 *   **Battery Thresholds:** Adjusted via "Low Battery Threshold" number entity in HA/Web UI.
 *   **Updates:** To update the ESPHome version, simply run the build command again.
+
 
