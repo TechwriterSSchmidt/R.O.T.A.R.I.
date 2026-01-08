@@ -1,6 +1,5 @@
-# RotaTalk
-
-An ESPHome-based firmware that transforms a vintage rotary phone into a modern, portable voice assistant for Home Assistant.
+# R.O.T.A.R.I.
+The Robotic Operative Telecommunication & Artificial Response Interface. An ESPHome-based firmware that transforms a vintage rotary phone into a modern, portable voice assistant for Home Assistant.
 
 ## Features
 
