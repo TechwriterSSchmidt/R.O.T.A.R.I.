@@ -2,12 +2,53 @@ esphome:
   name: rotary-phone-agent
   friendly_name: Rotary Phone Agent
   min_version: 2024.7.0
+  includes:
+    - src/rotary_helpers.h
   platformio_options:
     board_build.flash_mode: dio
     # LilyGO T7-S3 16MB Flash / 8MB PSRAM Specifics
     board_build.arduino.memory_type: qio_opi
     build_flags:
       - "-DBOARD_HAS_PSRAM"
+
+# Hardware Pin Definitions
+# Change these values here to adapt to different board revisions
+substitutions:
+  # I2S Audio - Handset (Microphone & Ear Speaker)
+  pin_i2s_handset_lrclk: GPIO5
+  pin_i2s_handset_bclk: GPIO6
+  pin_i2s_handset_din: GPIO7   # Mic Data In
+  pin_i2s_handset_dout: GPIO15 # Speaker Data Out
+
+  # I2S Audio - Base (Main Speaker for Ringtone/Music)
+  pin_i2s_base_lrclk: GPIO16
+  pin_i2s_base_bclk: GPIO18
+  pin_i2s_base_dout: GPIO19
+
+  # Peripherals
+  pin_led_strip: GPIO2
+  pin_battery_voltage: GPIO4
+  pin_uart_tx: GPIO43
+  pin_uart_rx: GPIO44
+  
+  # I2C Bus
+  pin_i2c_sda: GPIO8
+  pin_i2c_scl: GPIO9
+
+  # Rotary Phone Mechanism
+  pin_hook_switch: GPIO1      # Detects if handset is on hook
+  pin_dial_pulse: GPIO14      # Dial pulse counting
+  pin_dial_active: GPIO13     # Active while dial is rotating
+  
+  # Speed Dial Buttons
+  pin_button_1: GPIO10
+  pin_button_2: GPIO11
+  pin_button_3: GPIO12
+
+# External Components
+external_components:
+  - source: components
+    components: [ drv2605 ]
 
 esp32:
   board: esp32-s3-devkitc-1
@@ -19,7 +60,7 @@ esp32:
 # Enable logging
 logger:
 
-# Enable debug component (Watchdog)
+# Enable debug component
 debug:
 
 # Enable Home Assistant API
@@ -48,55 +89,52 @@ ota:
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
-
-  # Reboot if no wifi connection for 5 minutes
   reboot_timeout: 5min
 
-  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  # Captive Portal Fallback
   ap:
     ssid: "Rotary-Phone-Agent Fallback"
-    password: ""
+    password: "" # Consider moving this to secrets if security is a concern
 
 captive_portal:
 
 # Voice Assistant configuration
 # Requires a microphone and speaker (e.g., I2S based like INMP441 and MAX98357A)
-# Pinout angepasst für ESP32-S3
 
-# I2S Bus A: Hörer (Mikrofon + Hörer-Lautsprecher)
+# I2S Bus A: Handset
 i2s_audio:
   - id: i2s_bus_handset
-    i2s_lrclk_pin: GPIO5
-    i2s_bclk_pin: GPIO6
+    i2s_lrclk_pin: ${pin_i2s_handset_lrclk}
+    i2s_bclk_pin: ${pin_i2s_handset_bclk}
 
-  # I2S Bus B: Sockel (Großer Lautsprecher für Klingeln/Musik)
+  # I2S Bus B: Base Speaker
   - id: i2s_bus_base
-    i2s_lrclk_pin: GPIO16
-    i2s_bclk_pin: GPIO18 # Geändert (war 17, Konflikt mit LED auf T7-S3)
+    i2s_lrclk_pin: ${pin_i2s_base_lrclk}
+    i2s_bclk_pin: ${pin_i2s_base_bclk}
 
 microphone:
   - platform: i2s_audio
     id: mic_i2s
     i2s_audio_id: i2s_bus_handset
-    i2s_din_pin: GPIO7
+    i2s_din_pin: ${pin_i2s_handset_din}
     adc_type: external
     pdm: false
 
 speaker:
-  # Lautsprecher im Hörer (für Sprachassistent)
+  # Handset Speaker (for Voice Assistant)
   - platform: i2s_audio
     id: speaker_handset
     i2s_audio_id: i2s_bus_handset
-    i2s_dout_pin: GPIO15
+    i2s_dout_pin: ${pin_i2s_handset_dout}
     dac_type: external
 
-# Media Player für Klingeltöne & Musik (via I2S Sockel-Lautsprecher)
+# Media Player for Ringtones & Music (Base Speaker)
 media_player:
   - platform: i2s_audio
     name: "Rotary Phone Base Speaker"
     id: media_player_base
     i2s_audio_id: i2s_bus_base
-    i2s_dout_pin: GPIO19
+    i2s_dout_pin: ${pin_i2s_base_dout}
     dac_type: external
     mode: mono
     on_play:
@@ -107,13 +145,13 @@ media_player:
           range_to: 4
           red: 0%
           green: 0%
-          blue: 100% # Blau bei Musik/Klingeln
+          blue: 100% # Blue for Music/Ringing
     on_idle:
       - light.turn_off: button_leds
 
 voice_assistant:
   microphone: mic_i2s
-  speaker: speaker_handset # Antwort nur im Hörer
+  speaker: speaker_handset # Respond only via Handset
   on_start:
     - if:
         condition:
@@ -124,16 +162,16 @@ voice_assistant:
         else:
           - script.stop: led_blink_blue
           - script.stop: led_blink_red
-          - light.turn_on: button_leds # Strip einschalten
+          - light.turn_on: button_leds
           - light.addressable_set:
               id: button_leds
               range_from: 0
               range_to: 1
               red: 0%
               green: 100%
-              blue: 0% # Grün = Zuhören
+              blue: 0% # Green = Listening
   on_stt_end:
-    - script.execute: led_blink_blue # Blau blinken = Verarbeiten
+    - script.execute: led_blink_blue # Blink Blue = Processing
   on_tts_start:
     - script.stop: led_blink_blue
     - light.addressable_set:
@@ -142,43 +180,30 @@ voice_assistant:
         range_to: 1
         red: 0%
         green: 0%
-        blue: 0% # Aus während Antwort
+        blue: 0% # Off during response
   on_end:
     - script.stop: led_blink_blue
     - script.stop: led_blink_red
     - light.turn_off: button_leds
   on_error:
     - script.stop: led_blink_blue
-    - script.execute: led_blink_red # Rot blinken = Fehler
+    - script.execute: led_blink_red # Blink Red = Error
     - delay: 2s
     - script.stop: led_blink_red
     - light.turn_off: button_leds
-
-# Deep Sleep Configuration
-# Optional: Aktivieren, um Strom zu sparen. Aufwachen durch Hörer (GPIO1), Tasten oder IMU.
-# deep_sleep:
-#   run_duration: 60s
-#   sleep_duration: 10min
-#   wakeup_pin:
-#     number: GPIO1 # Hörer abnehmen weckt auf
-#     inverted: true
-#     mode: INPUT_PULLUP
-
 
 # Button LEDs
 light:
   - platform: esp32_rmt_led_strip
     rgb_order: GRB
-    pin: GPIO2 # Geändert für T7-S3 (externer Pin)
+    pin: ${pin_led_strip}
     num_leds: 4
     chipset: ws2812
     name: "Button LEDs"
     id: button_leds
     restore_mode: ALWAYS_OFF
 
-# Hardware configuration
-
-# Enable Bluetooth for Bermuda BLE Trilateration
+# Bluetooth for Tracking
 esp32_ble_tracker:
   scan_parameters:
     interval: 1100ms
@@ -188,10 +213,10 @@ esp32_ble_tracker:
 bluetooth_proxy:
   active: true
 
-# I2C Bus für Sensoren (BME280, BNO055)
+# I2C Bus Sensoren
 i2c:
-  sda: GPIO8
-  scl: GPIO9
+  sda: ${pin_i2c_sda}
+  scl: ${pin_i2c_scl}
   scan: true
   id: bus_a
 
@@ -199,87 +224,31 @@ i2c:
 drv2605:
   i2c_id: bus_a
   id: haptic_motor
-  vibrator_type: LRA
-  library: TS2200_F # Optimierte Library für LRA (Library 6)
+  motor_type: LRA       
+  library: 6            # 6 = TS2200_F (LRA library)
 
-# UART für Audio (DY-SV17F)
+# UART for DY-SV17F Audio Module
 uart:
   - id: uart_bus_dfplayer
-    tx_pin: GPIO43
-    rx_pin: GPIO44
+    tx_pin: ${pin_uart_tx}
+    rx_pin: ${pin_uart_rx}
     baud_rate: 9600
 
-# OPTIONAL: UART für Radar (LD2410)
-#  - id: uart_bus_radar
-#    tx_pin: GPIO39 # ESP TX -> Radar RX
-#    rx_pin: GPIO38 # ESP RX <- Radar TX
-#    baud_rate: 256000
-#    parity: NONE
-#    stop_bits: 1
-
-# DFPlayer wurde durch DY-SV17F (4MB Flash) ersetzt.
-# Ansteuerung erfolgt nun direkt via UART Bytes.
-# Dateisystem auf dem Flash:
-# 00001.mp3 -> Klingelton
-# 00002.mp3 -> Klick-Geräusch (Wählscheibe)
-# 00003.mp3 -> Hook Flash Feedback / error
-
-# OPTIONAL: Radar Sensor (LD2410)
-# ld2410:
-#   uart_id: uart_bus_radar
-
-#  Sensors
+# Sensors
 sensor:
-  # OPTIONAL: Environment Sensor (BME280)
-#  - platform: bme280_i2c
-#    i2c_id: bus_a
-#    address: 0x76 # Prüfen: 0x76 oder 0x77
-#    temperature:
-#      name: "Phone Temperature"
-#    humidity:
-#      name: "Phone Humidity"
-#    pressure:
-#      name: "Phone Pressure"
-#    update_interval: 60s
-
-  # OPTIONAL: Radar Distances
-#  - platform: ld2410
-#    moving_distance:
-#      name: "Moving Target Distance"
-#    still_distance:
-#      name: "Still Target Distance"
-#    detection_distance:
-#      name: "Detection Distance"
-
-  # OPTIONAL: IMU & Shake-to-Wake (BNO055)
-  # Connect BNO055 INT pin to a GPIO (e.g., GPIO3) for wakeup
-#  - platform: bno055
-#    i2c_id: bus_a
-#    address: 0x28
-#    accel_x:
-#      name: "IMU Accel X"
-#    accel_y:
-#      name: "IMU Accel Y"
-#    accel_z:
-#      name: "IMU Accel Z"
-#    update_interval: 5s
-
   - platform: adc
-    pin: GPIO4 # GPIO4 ist ADC1_CH3.
+    pin: ${pin_battery_voltage}
     name: "Battery Voltage"
     id: battery_voltage
     update_interval: 60s
     attenuation: 12db
     filters:
-      - multiply: 2.0 # Spannungsteiler anpassen falls nötig
+      - multiply: 2.0 # Adjust voltage divider factor if needed
     on_value:
       then:
         - if:
             condition:
-              lambda: |-
-                // Umrechnung Prozent -> Volt für den Vergleich (Linear: 3.0V=0%, 4.2V=100%)
-                float threshold_volts = 3.0 + (id(low_battery_threshold).state / 100.0) * 1.2;
-                return x < threshold_volts;
+              lambda: 'return rotary::is_battery_low(x, id(low_battery_threshold).state);'
             then:
               - if:
                   condition:
@@ -311,13 +280,7 @@ sensor:
     unit_of_measurement: "%"
     device_class: battery
     accuracy_decimals: 0
-    lambda: |-
-      if (isnan(id(battery_voltage).state)) return NAN;
-      // Linear mapping: 3.0V -> 0%, 4.2V -> 100%
-      float level = (id(battery_voltage).state - 3.0) / 1.2 * 100.0;
-      if (level < 0) return 0;
-      if (level > 100) return 100;
-      return level;
+    lambda: 'return rotary::get_battery_level(id(battery_voltage).state);'
     update_interval: 60s
 
   - platform: template
@@ -327,7 +290,7 @@ sensor:
     accuracy_decimals: 0
     force_update: true
 
-# Globale Variablen
+# Globals
 globals:
   - id: dial_pulse_count
     type: int
@@ -351,6 +314,10 @@ globals:
     type: bool
     restore_value: no
     initial_value: 'false'
+  # Constants
+  - id: vibe_loop_duration_ms
+    type: int
+    initial_value: '750' # 15 vibrations * 50ms
 
 number:
   - platform: template
@@ -388,13 +355,7 @@ number:
     optimistic: true
     restore_value: true
     set_action:
-      - lambda: |-
-          uint8_t vol = (uint8_t)x;
-          uint8_t cmd[] = {0xAA, 0x13, 0x01, vol};
-          uint8_t sum = 0;
-          for(int i=0; i<4; i++) sum += cmd[i];
-          id(uart_bus_dfplayer).write_array(cmd, 4);
-          id(uart_bus_dfplayer).write_byte(sum);
+      - lambda: 'rotary::set_mp3_volume(id(uart_bus_dfplayer), x);'
 
   - platform: template
     name: "Ringtone Count"
@@ -456,42 +417,30 @@ button:
     id: sys_restart
     name: "System Restart"
 
-# Skripte
+# Scripts
 script:
-  # Hilfsskript für DY-SV17F Modul (Play by File Number)
-  # Befehl: AA 07 02 High Low SM
-  # SM = Summe(AA+07+02+High+Low) & 0xFF
-  # Datasheet: https://raw.githubusercontent.com/tasmota/docs/master/docs/_media/DY-SV17F_datasheet.pdf
-  # Docs Collection: https://github.com/smoluks/DY-SV17F (UART Mode Guide, etc.)
-  # UART Guide: https://arduino.ua/files/UART%20mode%20user_s%20guide.pdf
+  # Play MP3 via DY-SV17F (Play by File Number)
   - id: play_mp3
     parameters:
       file_num: int
     then:
-      - lambda: |-
-          uint8_t high = (file_num >> 8) & 0xFF;
-          uint8_t low = file_num & 0xFF;
-          uint8_t cmd[] = {0xAA, 0x07, 0x02, high, low};
-          uint8_t sum = 0;
-          for(int i=0; i<5; i++) sum += cmd[i];
-          id(uart_bus_dfplayer).write_array(cmd, 5);
-          id(uart_bus_dfplayer).write_byte(sum);
+      - lambda: 'rotary::play_mp3_file(id(uart_bus_dfplayer), file_num);'
 
-  # Hilfsskript Stop
+  # Stop MP3 Playback
   - id: stop_mp3
     then:
       - uart.write: 
           id: uart_bus_dfplayer
           data: [0xAA, 0x04, 0x00, 0xAE]
 
-  # Skript zum Verarbeiten der gewählten Ziffer
+  # Process and send dialed string
   - id: flush_dialed_number
     then:
       - if:
           condition:
             lambda: 'return id(dialed_number_buffer).length() > 0;'
           then:
-            # Magic Codes (Multi-Digit Mode)
+            # Check for Magic Code "999" -> Reboot
             - if:
                 condition:
                    lambda: 'return id(dialed_number_buffer) == "999";'
@@ -564,7 +513,7 @@ script:
                 blue: 0%
             - delay: 300ms
 
-  # Skript: Broadcast Notification (4. LED blinkt Gelb)
+  # Broadcast Notification (LED 4 blinks yellow)
   - id: led_blink_yellow_broadcast
     mode: restart
     then:
@@ -579,7 +528,7 @@ script:
                 range_to: 4
                 red: 100%
                 green: 100%
-                blue: 0% # Gelb
+                blue: 0% # Yellow
             - delay: 500ms
             - light.addressable_set:
                 id: button_leds
@@ -590,7 +539,7 @@ script:
                 blue: 0%
             - delay: 500ms
 
-  # Skript: Find My Phone (Alarm)
+  # Find My Phone Alarm
   - id: find_phone
     mode: restart
     then:
@@ -599,7 +548,7 @@ script:
           condition:
             lambda: 'return true;'
           then:
-            # Visueller Alarm (Alle LEDs Rot blinken)
+            # Visual Alarm (All LEDs flash red)
             - light.addressable_set:
                 id: button_leds
                 range_from: 0
@@ -607,9 +556,6 @@ script:
                 red: 100%
                 green: 0%
                 blue: 0%
-            # Akustischer Alarm (Piepen über Sockel-Lautsprecher simulieren oder MP3)
-            # Hier nutzen wir einfach den Media Player, falls eine URL übergeben wird,
-            # oder wir verlassen uns auf das Blinken.
             - delay: 200ms
             - light.addressable_set:
                 id: button_leds
@@ -624,10 +570,10 @@ script:
     mode: restart
     then:
       - logger.log:
-          format: "Wählscheibe: %d Impulse gezählt"
+          format: "Rotary Dial: %d pulses counted"
           args: [ 'id(dial_pulse_count)' ]
       
-      # Update sensor with the last dialed digit
+      # Update sensor
       - sensor.template.publish:
           id: last_dialed_digit
           state: !lambda 'return (id(dial_pulse_count) == 10) ? 0 : id(dial_pulse_count);'
@@ -654,7 +600,7 @@ script:
                         - script.stop: flush_dialed_number_timer
                         - script.execute: flush_dialed_number_timer
                       else:
-                        # SINGLE DIGIT MODE (Standard)
+                        # SINGLE DIGIT MODE
                         # Magic Code: 0 -> Start Voice Assistant Manual
                         - if:
                             condition:
@@ -668,24 +614,23 @@ script:
                                   data_template:
                                     digit: !lambda 'return (id(dial_pulse_count) == 10) ? 0 : id(dial_pulse_count);'
       
-      # Zähler zurücksetzen
       - globals.set:
           id: dial_pulse_count
           value: '0'
 
-  # Skript: Telefon klingeln lassen
+  # Ringtone Sequence
   - id: ring_phone
     mode: restart
     then:
       - repeat:
           count: !lambda 'return id(ring_count).state;'
           then:
-            # Nur klingeln, wenn Hörer aufgelegt ist (Sensor ist ON)
+            # Check if phone is on hook
             - if:
                 condition:
                   binary_sensor.is_on: phone_hook
                 then:
-                  # Audio abspielen (wenn Volume > 0)
+                  # Play Audio
                   - if:
                       condition:
                          lambda: 'return id(phone_volume).state > 0;'
@@ -694,24 +639,23 @@ script:
                             id: play_mp3
                             file_num: 1 # 00001.mp3
                   
-                  # Vibration Motor (über Transistor)
+                  # Vibration
                   - if:
                       condition:
                         switch.is_on: haptic_ringing
                       then:
                         - repeat:
-                            count: 15 # Anzahl der Vibrationen pro "Ring"
+                            count: 15 # Vibrations per ring
                             then:
-                              - drv2605.set_waveform:
+                              - drv2605.play_effect:
                                   id: haptic_motor
                                   effect: 1 # Strong Click
-                              - drv2605.go: haptic_motor
                               - delay: 50ms
 
-                  # Wartezeit = Länge des Klingeltons + Pause
-                  # (Achtung: Die Haptic-Loop oben blockiert delayfrei, 
-                  #  aber wir haben delay:50ms * 15 = 750ms "verbraucht")
-                  - delay: !lambda 'return (id(ring_duration).state - 750 < 0) ? 0 : (id(ring_duration).state - 750);'
+                  # Wait time compensations: ring_duration - actual_vibration_time
+                  - delay: !lambda |-
+                      int remaining = id(ring_duration).state - id(vibe_loop_duration_ms);
+                      return (remaining < 0) ? 0 : remaining;
                   - delay: !lambda 'return id(ring_pause).state;'
                 else:
                   - script.stop: ring_phone
@@ -723,7 +667,7 @@ script:
           condition:
             lambda: 'return true;'
           then:
-            # Einblenden (Rot, LED 4)
+            # Fade in
             - light.addressable_set:
                 id: button_leds
                 range_from: 3
@@ -732,7 +676,7 @@ script:
                 green: 0%
                 blue: 0%
             - delay: 1000ms
-            # Ausblenden
+            # Fade out
             - light.addressable_set:
                 id: button_leds
                 range_from: 3
@@ -749,16 +693,16 @@ script:
           condition:
             lambda: 'return id(is_muted);'
           then:
-            # Einblenden (Lila)
+            # Fade in (Purple)
             - light.addressable_set:
                 id: button_leds
                 range_from: 0
-                range_to: 1 # Nur LED 1
+                range_to: 1
                 red: 50%
                 green: 0%
                 blue: 50%
             - delay: 1000ms
-            # Ausblenden
+            # Fade out
             - light.addressable_set:
                 id: button_leds
                 range_from: 0
@@ -768,48 +712,46 @@ script:
                 blue: 10%
             - delay: 1000ms
 
-# Binary sensors configuration
+# Binary Sensors
 binary_sensor:
-  # Hook switch (Telefonhörer aufgelegt)
-  # Wenn der Hörer aufgelegt ist, wird der Taster gedrückt (Low oder High je nach Verdrahtung)
+  # Hook Switch (Is phone on hook?)
   - platform: gpio
     pin:
-      number: GPIO1
+      number: ${pin_hook_switch}
       mode: INPUT_PULLUP
-      inverted: true # Anpassen, falls Logik umgekehrt ist
+      inverted: true
     name: "Phone Hook"
     id: phone_hook
     filters:
       - delayed_on: 50ms
       - delayed_off: 50ms
     on_press:
-      # Hörer aufgelegt -> Stop & Timestamp speichern & Mute Reset
+      # Hook Down (Call ended)
       - voice_assistant.stop:
       - light.turn_off: button_leds
       - globals.set:
           id: hook_down_timestamp
           value: !lambda 'return millis();'
-      # Reset Mute State
       - globals.set:
           id: is_muted
           value: 'false'
       - script.stop: led_pulse_purple_mute
     on_release:
-      # Hörer abgenommen -> Prüfen ob Flash oder echtes Abnehmen
+      # Hook Up (Call started)
       - if:
           condition:
             lambda: 'return (millis() - id(hook_down_timestamp)) < 500;'
           then:
-            # Hook Flash (kurz getippt) -> Event senden
+            # Hook Flash detected
             - logger.log: "Hook Flash detected"
             - homeassistant.event:
                 event: esphome.rotary_phone_flash
-            # Lokales Feedback (Doppel-Piep)
+            # Local Feedback
             - script.execute:
                 id: play_mp3
                 file_num: 3 # 00003.mp3
           else:
-            # Normales Abnehmen -> Stop Media & Start Listening
+            # Normal Pickup
             - if:
                 condition:
                   media_player.is_playing: media_player_base
@@ -817,11 +759,11 @@ binary_sensor:
                   - media_player.stop: media_player_base
             - voice_assistant.start:
 
-  # Speed dial buttons (Schnellwahltaster)
-  # Taste 1 (Mute Funktion bei Long Press)
+  # Speed Dial Buttons
+  # Button 1 (Long Press: Mute)
   - platform: gpio
     pin:
-      number: GPIO10
+      number: ${pin_button_1}
       mode: INPUT_PULLUP
     name: "Speed Dial 1"
     filters:
@@ -846,7 +788,7 @@ binary_sensor:
                 - globals.set:
                     id: is_muted
                     value: 'false'
-                - voice_assistant.start: # Mikrofon wieder aktivieren (falls gewünscht)
+                - voice_assistant.start:
                 - script.stop: led_pulse_purple_mute
                 - light.turn_off: button_leds
                 - logger.log: "Microphone Unmuted"
@@ -859,10 +801,10 @@ binary_sensor:
                 - script.execute: led_pulse_purple_mute
                 - logger.log: "Microphone Muted"
 
-  # Taste 2
+  # Button 2
   - platform: gpio
     pin:
-      number: GPIO11
+      number: ${pin_button_2}
       mode: INPUT_PULLUP
     name: "Speed Dial 2"
     filters:
@@ -874,10 +816,10 @@ binary_sensor:
           data:
             button: "2"
   
-  # Taste 3
+  # Button 3
   - platform: gpio
     pin:
-      number: GPIO12
+      number: ${pin_button_3}
       mode: INPUT_PULLUP
     name: "Speed Dial 3"
     filters:
@@ -889,12 +831,10 @@ binary_sensor:
           data:
             button: "3"
   
-  # Rotary Dial Active (Wählscheibe dreht sich)
-  # Ersetzt Speed Dial 4 (GPIO13)
-  # Ruhe = 0, Aktiv = 1
+  # Rotary Dial Active (Dial is rotating)
   - platform: gpio
     pin:
-      number: GPIO13
+      number: ${pin_dial_active}
       mode: INPUT_PULLUP
       inverted: true
     name: "Rotary Dial Active"
@@ -904,45 +844,33 @@ binary_sensor:
       - delayed_off: 10ms
     on_press:
       then:
-        # Start des Wählvorgangs -> Zähler reset
         - globals.set:
             id: dial_pulse_count
             value: '0'
-        # Assistenten/Musik stoppen, damit man in Ruhe wählen kann
         - voice_assistant.stop:
-        # Freizeichen stoppen (falls wir eines implementieren)
-        # - dfplayer.stop
         - logger.log: "Dialing started..."
     on_release:
       then:
-        # Ende des Wählvorgangs (Ziffer fertig) -> Verarbeiten
         - logger.log: "Dialing finished."
         - script.execute: process_dialed_digit
 
-  # Rotary Dial (Wählscheibe) - Impuls-Pin
-  # Wir nutzen binary_sensor statt pulse_counter für bessere Kontrolle und Entprellung
+  # Rotary Dial Pulse Counting
   - platform: gpio
     pin: 
-      number: GPIO14
+      number: ${pin_dial_pulse}
       mode: INPUT_PULLUP
       inverted: true
     name: "Rotary Dial Pulse"
     id: rotary_pulse
     filters:
-      # Entprellung: Signal muss stabil sein (Werte anpassen je nach Alter der Scheibe)
       - delayed_on: 10ms
       - delayed_off: 10ms
     on_press:
       then:
-        # Akustisches Feedback (Klick) lokal
+        # Acoustic tick
         - script.execute:
             id: play_mp3
             file_num: 2 # 00002.mp3
-        # Zähler erhöhen
         - globals.set:
             id: dial_pulse_count
             value: !lambda 'return id(dial_pulse_count) + 1;'
-        # Timer (process_dialed_digit) wird hier NICHT mehr gestartet, 
-        # das übernimmt jetzt der Rotary Dial Active Sensor (GPIO13 Release)
-
-# End of file
