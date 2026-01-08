@@ -61,6 +61,31 @@ You can easily change the pin assignments in `rotary_phone_agent.yaml` under `su
 | | Battery | `pin_battery_voltage` | 4 |
 | | MP3 TX | `pin_uart_tx` | 43 |
 | | MP3 RX | `pin_uart_rx` | 44 |
+| **Buttons** | Button 1 | `pin_button_1` | 10 |
+| | Button 2 | `pin_button_2` | 11 |
+| | Button 3 | `pin_button_3` | 12 |
+| | Button 4 | `pin_button_4` | 21 |
+
+## LED Signaling & Button Functions
+
+The 4 buttons on the device provide local control and visual feedback via the 4-LED strip.
+
+| Button | Function | LED Feedback | Description |
+| :--- | :--- | :--- | :--- |
+| **1** | **Check Battery** | **Bar Graph** (3s) | Displays voltage level. <br>🔴 (<3.6V)<br>🟠 (>3.6V)<br>🟡 (>3.8V)<br>🟢 (>4.0V) |
+| **2** | **Custom Action** | **None** | Sends event to Home Assistant. <br>Can be used for Mute, Automation, etc. |
+| **3** | **Speakerphone** | **Status in HA** | Toggles "Speakerphone Mode" switch in Home Assistant. Useful for routing audio to base speaker. |
+| **4** | **Smart Home** | **None** | Sends event to Home Assistant for custom automation (e.g., Toggle Lights). |
+
+### Voice Assistant Feedback
+
+| State | LED Color | Animation |
+| :--- | :--- | :--- |
+| **Listening** | 🟢 Green | Constant |
+| **Thinking** | 🔵 Blue | Blinking |
+| **Speaking** | ⚫ Off | (Off to allow conversation) |
+| **Error** | 🔴 Red | Blinking |
+| **Muted** | 🟣 Purple | Pulsing (on LED 2) |
 
 ## Required Sound Files
 
@@ -69,9 +94,8 @@ The firmware controls a DY-SV17F MP3 module which requires specific filenames on
 | Filename | Description | Usage |
 | :--- | :--- | :--- |
 | **`00001.mp3`** | **Ringtone** | Plays through the **Base Speaker** when the "Ring Phone" script is triggered. |
-| **`00003.mp3`** | **Signal Tone** | Plays on "Hook Flash" (hanging up and picking up quickly). |
 
-> **Note:** The "Click/Tick" sound (`00002.mp3`) is no longer required for dialing, as this is now generated electronically in the handset for zero latency.
+> **Note:** The "Click/Tick" sounds for dialing and the "Hook Flash" signal are now generated electronically in the handset. Files `00002.mp3` and `00003.mp3` are no longer required on the SD card.
 
 ## Getting Started
 

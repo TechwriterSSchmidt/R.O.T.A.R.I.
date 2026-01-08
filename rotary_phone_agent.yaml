@@ -44,6 +44,7 @@ substitutions:
   pin_button_1: GPIO10
   pin_button_2: GPIO11
   pin_button_3: GPIO12
+  pin_button_4: GPIO21 # Adjust if necessary
 
 # External Components
 external_components:
@@ -159,10 +160,13 @@ voice_assistant:
   on_start:
     - if:
         condition:
-          lambda: 'return id(is_muted);'
+          switch.is_on: mic_mute
         then:
           - voice_assistant.stop:
           - logger.log: "Voice Assistant blocked because of Mute"
+          - light.turn_on:
+              id: button_leds
+              effect: "Mute Pulse"
         else:
           - script.stop: led_blink_blue
           - script.stop: led_blink_red
@@ -210,6 +214,45 @@ light:
     name: "Button LEDs"
     id: button_leds
     restore_mode: ALWAYS_OFF
+    effects:
+      - addressable_scan:
+      
+      # Mute Pulse (Purple on LED 2)
+      - addressable_lambda:
+          name: "Mute Pulse"
+          update_interval: 100ms
+          lambda: |-
+            static float progress = 0.0;
+            static bool going_up = true;
+            if (going_up) progress += 0.1; else progress -= 0.1;
+            if (progress > 1.0) { progress = 1.0; going_up = false; }
+            if (progress < 0.2) { progress = 0.2; going_up = true; }
+            
+            it.all() = Color::BLACK;
+            // LED 2 (Index 1) pulsiert Purple
+            if (it.size() > 1) {
+              it[1] = Color(128, 0, 128) * progress; 
+            }
+
+      # Battery Level Indicator
+      - addressable_lambda:
+          name: "Battery Level"
+          update_interval: 500ms
+          lambda: |-
+            float v = id(battery_voltage).state;
+            it.all() = Color::BLACK;
+            
+            // LED 1 (Red) - < 3.6V (Critical/Low)
+            if (v >= 3.0) it[0] = Color(255, 0, 0); 
+            
+            // LED 2 (Orange) - > 3.6V
+            if (v >= 3.6) it[1] = Color(255, 165, 0);
+            
+            // LED 3 (Yellow) - > 3.8V
+            if (v >= 3.8) it[2] = Color(255, 255, 0);
+            
+            // LED 4 (Green) - > 4.0V
+            if (v >= 4.0) it[3] = Color(0, 255, 0);
 
 # Bluetooth for Tracking
 esp32_ble_tracker:
@@ -398,6 +441,24 @@ number:
     restore_value: true
 
 switch:
+  - platform: template
+    name: "Microphone Mute"
+    id: mic_mute
+    icon: "mdi:microphone-off"
+    optimistic: true
+    on_turn_on:
+      - light.turn_on:
+          id: button_leds
+          effect: "Mute Pulse"
+    on_turn_off:
+      - light.turn_off: button_leds
+
+  - platform: template
+    name: "Speakerphone Mode"
+    id: speaker_mode
+    icon: "mdi:volume-high"
+    optimistic: true
+
   - platform: template
     name: "Haptic Ringing"
     id: haptic_ringing
@@ -792,7 +853,9 @@ binary_sensor:
       - delayed_off: 50ms
     on_press:
       # Hook Down (Call ended)
-      - lambda: 'id(my_tone_gen).stop_tone();'
+      - lambda: |-
+          id(my_tone_gen).trigger_click();
+          id(my_tone_gen).stop_tone();
       - voice_assistant.stop:
       - light.turn_off: button_leds
       - globals.set:
@@ -828,78 +891,83 @@ binary_sensor:
             # Start Dial Tone (Wait for user input)
             - lambda: 'id(my_tone_gen).start_tone(425.0);'
 
-  # Speed Dial Buttons
-  # Button 1 (Long Press: Mute)
+  # Speed Dial Buttons & Functions
+  
+  # Button 1: Battery Level Indicator
   - platform: gpio
     pin:
       number: ${pin_button_1}
       mode: INPUT_PULLUP
-    name: "Speed Dial 1"
+      inverted: true
+    name: "Button 1 (Battery)"
     filters:
       - delayed_on: 50ms
       - delayed_off: 50ms
-    on_click:
-      - min_length: 50ms
-        max_length: 1000ms
-        then:
-          - homeassistant.event:
-              event: esphome.rotary_phone_button
-              data:
-                button: "1"
-      - min_length: 3000ms
-        max_length: 10000ms
-        then:
-          - if:
-              condition:
-                lambda: 'return id(is_muted);'
-              then:
-                # Unmute
-                - globals.set:
-                    id: is_muted
-                    value: 'false'
-                - voice_assistant.start:
-                - script.stop: led_pulse_purple_mute
-                - light.turn_off: button_leds
-                - logger.log: "Microphone Unmuted"
-              else:
-                # Mute
-                - globals.set:
-                    id: is_muted
-                    value: 'true'
-                - voice_assistant.stop:
-                - script.execute: led_pulse_purple_mute
-                - logger.log: "Microphone Muted"
+    on_press:
+      then:
+        - light.turn_on:
+            id: button_leds
+            effect: "Battery Level"  
+        - delay: 3s
+        - light.turn_off: button_leds
 
-  # Button 2
+  # Button 2: Custom Action (HA)
   - platform: gpio
     pin:
       number: ${pin_button_2}
       mode: INPUT_PULLUP
-    name: "Speed Dial 2"
+      inverted: true
+    name: "Button 2 (Action)"
     filters:
       - delayed_on: 50ms
       - delayed_off: 50ms
     on_press:
       - homeassistant.event:
-          event: esphome.rotary_phone_button
-          data:
-            button: "2"
-  
-  # Button 3
+           event: esphome.rotary_phone_button
+           data:
+             button: "2"
+
+  # Button 3: Speakerphone Mode
   - platform: gpio
     pin:
       number: ${pin_button_3}
       mode: INPUT_PULLUP
-    name: "Speed Dial 3"
+      inverted: true
+    name: "Button 3 (Speakerphone)"
     filters:
       - delayed_on: 50ms
       - delayed_off: 50ms
     on_press:
+      then:
+        - switch.toggle: speaker_mode
+        # Visual feedback: Flash LED 3 logic?
+        # The switch state itself can drive an effect or HA logic
+        - if:
+            condition:
+              switch.is_on: speaker_mode
+            then:
+              - logger.log: "Speakerphone ON"
+              # Optional: Pulse blue or similar if desired.
+            else:
+              - logger.log: "Speakerphone OFF"
+
+  # Button 4: Custom Action (Home Assistant)
+  - platform: gpio
+    pin:
+      number: ${pin_button_4}
+      mode: INPUT_PULLUP
+      inverted: true
+    name: "Button 4 (Action)"
+    filters:
+      - delayed_on: 50ms
+      - delayed_off: 50ms
+    # Sends binary_sensor event to HA automatically
+    on_press:
       - homeassistant.event:
-          event: esphome.rotary_phone_button
-          data:
-            button: "3"
-  
+           event: esphome.rotary_phone_button
+           data:
+             button: "4"
+
   # Rotary Dial Active (Dial is rotating)
   - platform: gpio
     pin:
