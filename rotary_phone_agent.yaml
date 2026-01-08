@@ -120,13 +120,23 @@ microphone:
     adc_type: external
     pdm: false
 
+# Tone Generate & Voice Speaker
+custom_component:
+- lambda: |-
+    auto *cv_speaker = new rotary::VintageSpeaker();
+    rotary::global_tone_source = cv_speaker;
+    return {cv_speaker};
+
 speaker:
-  # Handset Speaker (for Voice Assistant)
-  - platform: i2s_audio
-    id: speaker_handset
-    i2s_audio_id: i2s_bus_handset
-    i2s_dout_pin: ${pin_i2s_handset_dout}
-    dac_type: external
+  # Handset Speaker (Modified Vintage Speaker)
+  - platform: custom
+    lambda: |-
+      return {rotary::global_tone_source};
+    speakers:
+      - id: speaker_handset
+        i2s_audio_id: i2s_bus_handset
+        i2s_dout_pin: ${pin_i2s_handset_dout}
+        dac_type: external
 
 # Media Player for Ringtones & Music (Base Speaker)
 media_player:
@@ -182,6 +192,12 @@ voice_assistant:
         green: 0%
         blue: 0% # Off during response
   on_end:
+    # Busy Tone after call (425Hz, 480ms ON, 480ms OFF)
+    - lambda: |-
+        if (rotary::global_tone_source) {
+          rotary::global_tone_source->set_pulse_timing(480, 480);
+          rotary::global_tone_source->start_tone(425.0, true);
+        }
     - script.stop: led_blink_blue
     - script.stop: led_blink_red
     - light.turn_off: button_leds
@@ -296,7 +312,7 @@ globals:
     type: int
     initial_value: '0'
   - id: hook_down_timestamp
-    type: int
+    type: unsigned long
     initial_value: '0'
   - id: multi_digit_mode
     type: bool
@@ -617,8 +633,42 @@ script:
                             condition:
                               lambda: 'return (id(dial_pulse_count) == 10);'
                             then:
-                              - logger.log: "Magic Code 0: Starting Voice Assistant"
-                              - voice_assistant.start:
+                              - lambda: 'if (rotary::global_tone_source) rotary::global_tone_source->stop_tone();'
+                              
+                              # Start Ringback Tone (Pulsing: 1s ON, 4s OFF) in Handset
+                              - lambda: 'if (rotary::global_tone_source) rotary::global_tone_source->start_tone(425.0, true);'
+                              - logger.log: "Ringback Tone started (Handset)..."
+
+                              # Check time since last conversation (hangup)
+                              - if:
+                                  condition:
+                                    lambda: 'return (millis() - id(hook_down_timestamp)) > 60000;'
+                                  then:
+                                    # > 60s: Standard Mode (2-3 Rings)
+                                    - logger.log: "Operator Mode: Standard (Gap > 60s)"
+                                    - delay: !lambda 'return ((rand() % 2) + 2) * 5000;' 
+                                    
+                                    # Operator picks up -> Stop Ringing
+                                    - lambda: 'if (rotary::global_tone_source) rotary::global_tone_source->stop_tone();'
+                                    
+                                    # Play Standard Greeting (Simulated by TTS Pause or Noise)
+                                    - delay: 1s
+                                    # Voice assistant already configured to answer politely via Prompt
+                                    
+                                    - voice_assistant.start:
+                                  else:
+                                    # < 60s: Annoyed Mode (1 Ring)
+                                    - logger.log: "Operator Mode: Annoyed (Gap < 60s)"
+                                    - delay: 5000ms
+                                    
+                                    # Operator picks up -> Stop Ringing
+                                    - lambda: 'if (rotary::global_tone_source) rotary::global_tone_source->stop_tone();'
+
+                                    # Play Annoyed Greeting (Simulated by TTS Pause or Noise)
+                                    - delay: 500ms
+                                    # Voice assistant configured to answer annoyed via Prompt
+                                    
+                                    - voice_assistant.start:
                             else:
                               - homeassistant.event:
                                   event: esphome.rotary_phone_dial
@@ -648,7 +698,7 @@ script:
                       then:
                         - script.execute:
                             id: play_mp3
-                            file_num: 1 # 00001.mp3
+                            file_num: 1 # 00001.wav / .mp3
                   
                   # Vibration
                   - if:
@@ -750,6 +800,7 @@ binary_sensor:
       - delayed_off: 50ms
     on_press:
       # Hook Down (Call ended)
+      - lambda: 'if (rotary::global_tone_source) rotary::global_tone_source->stop_tone();'
       - voice_assistant.stop:
       - light.turn_off: button_leds
       - globals.set:
@@ -772,7 +823,7 @@ binary_sensor:
             # Local Feedback
             - script.execute:
                 id: play_mp3
-                file_num: 3 # 00003.mp3
+                file_num: 3 # 00003.wav / .mp3
           else:
             # Normal Pickup
             - if:
@@ -780,7 +831,9 @@ binary_sensor:
                   media_player.is_playing: media_player_base
                 then:
                   - media_player.stop: media_player_base
-            - voice_assistant.start:
+            
+            # Start Dial Tone (Wait for user input)
+            - lambda: 'if (rotary::global_tone_source) rotary::global_tone_source->start_tone(425.0);'
 
   # Speed Dial Buttons
   # Button 1 (Long Press: Mute)
@@ -867,6 +920,7 @@ binary_sensor:
       - delayed_off: 10ms
     on_press:
       then:
+        - lambda: 'if (rotary::global_tone_source) rotary::global_tone_source->stop_tone();'
         - globals.set:
             id: dial_pulse_count
             value: '0'
@@ -890,10 +944,8 @@ binary_sensor:
       - delayed_off: 10ms
     on_press:
       then:
-        # Acoustic tick
-        - script.execute:
-            id: play_mp3
-            file_num: 2 # 00002.mp3
+        # Acoustic tick (Electronic Click in Handset)
+        - lambda: 'if (rotary::global_tone_source) rotary::global_tone_source->trigger_click();'
         - globals.set:
             id: dial_pulse_count
             value: !lambda 'return id(dial_pulse_count) + 1;'
