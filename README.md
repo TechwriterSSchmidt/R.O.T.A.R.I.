@@ -22,24 +22,23 @@ If you like this project, consider a tip. Your tip motivates me to continue deve
 
 ## Features
 
-*   **Authentic "Vintage" Experience:**
-    *   **Dial Tone:** Generates a 425Hz sine wave (plus authentic wobbling and background noise) when the handset is lifted.
-    *   **Electronic Clicking:** Generates click sounds directly in the handset while dialing, simulating mechanical contacts.
-    *   **Operator Mode:** Dialing **'0'** simulates calling the operator. Depending on how long since the last call, you get a "Standard" or "Annoyed" response before the AI connects.
-    *   **Busy Signal:** Plays a busy tone after the call ends logic.
-    *   **Comfort Noise:** Injects subtle static noise during TTS playback to simulate an analog line.
-*   **Push-to-Talk / Dial-to-Talk:** Picking up plays the dial tone. Dialing '0' connects to the Voice Assistant.
-*   **Visual Feedback:** Keys light up Green when listening, Blue when processing, and Red on error.
-*   **Acoustic Feedback:** Ringtones via DY-SV17F MP3 module (Base) and synthesized tones via I2S (Handset).
-*   **Rotary Dial:** sends events to Home Assistant for automation. Includes robust software debouncing (15ms) for reliable digit detection.
-*   **Speed Dial Buttons:** 4 configurable buttons.
-    *   **Button 1:** System controls (Battery Check & Do Not Disturb).
-    *   **Buttons 2-4:** Send events to Home Assistant for custom actions.
-*   **Sensors:** supports BME280 (Temp/Hum/Press) and LD2410 (Radar Presence).
-*   **Room Tracking:** Bluetooth proxy enabled for room presence via Bermuda/ESPresense.
-*   **Find My Phone:** Visual alarm mode if device is misplaced.
-*   **Battery Power:** Voltage monitoring with configurable low-battery thresholds.
-*   **Watchdog:** Auto-reboot on connection loss.
+| Category | Feature | Description |
+| :--- | :--- | :--- |
+| **Vintage Experience** | **Dial Tone** | Generates a 425Hz sine wave (plus authentic wobbling and background noise) when the handset is lifted. |
+| | **Electronic Clicking** | Generates click sounds directly in the handset while dialing, simulating mechanical contacts. |
+| | **Operator Mode** | Dialing **'0'** simulates calling the operator. Context-aware reactions ("Standard" vs "Annoyed"). |
+| | **Busy Signal** | Plays a busy tone after the call ends. |
+| | **Comfort Noise** | Injects subtle static noise during TTS playback to simulate an analog line. |
+| **Interaction** | **Push-to-Talk** | Picking up plays the dial tone. Dialing '0' connects to the Voice Assistant. |
+| | **Visual Feedback** | Keys light up Green (Listening), Blue (Processing), and Red (Error). |
+| | **Acoustic Feedback** | Ringtones via DY-SV17F MP3 module (Base) and synthesized tones via I2S (Handset). |
+| **Input** | **Rotary Dial** | Sends events to Home Assistant. Robust software debouncing (15ms) for reliable digit detection. |
+| | **Speed Dial Buttons** | **Button 1:** System (Battery/DND). **Buttons 2-4:** Custom HA events. |
+| **Smart Helpers** | **Sensors** | Supports BME280 (Temp/Hum/Press) and LD2410 (Radar Presence). |
+| | **Room Tracking** | Bluetooth proxy enabled for room presence via Bermuda/ESPresense. |
+| | **Find My Phone** | Visual alarm mode if device is misplaced. |
+| | **Battery Power** | Voltage monitoring with configurable low-battery thresholds. |
+| | **Watchdog** | Auto-reboot on connection loss. |
 
 ## Hardware Support
 
