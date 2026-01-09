@@ -1,6 +1,25 @@
 # R.O.T.A.R.I.
 The Robotic Operative Telecommunication & Artificial Response Interface. An ESPHome-based firmware that transforms a vintage rotary phone into a modern, portable voice assistant for Home Assistant.
 
+## Support my projects
+
+If you like this project, consider a tip. Your tip motivates me to continue developing useful stuff for the DIY community. Thank you very much for your support!
+
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/D1D01HVT9A)
+
+## Table of Contents
+*   [Features](#features)
+*   [Hardware Support](#hardware-support)
+*   [Project Structure](#project-structure)
+*   [Pinout Configuration](#pinout-configuration)
+*   [LED Signaling & Button Functions](#led-signaling--button-functions)
+*   [Required Sound Files](#required-sound-files)
+*   [Getting Started](#getting-started)
+*   [Maintenance](#maintenance)
+*   [Battery Life Estimates](#battery-life-estimates)
+*   [Future Roadmap](#future-roadmap)
+*   [Release Notes](RELEASE_NOTES.md)
+
 ## Features
 
 *   **Authentic "Vintage" Experience:**
@@ -107,6 +126,25 @@ The firmware controls a DY-SV17F MP3 module which requires specific filenames on
 
 *   **Battery Thresholds:** Adjusted via "Low Battery Threshold" number entity in HA/Web UI.
 *   **Updates:** To update the ESPHome version, simply run the build command again.
+
+## Battery Life Estimates
+
+Estimated runtimes based on active WiFi connection and average idle power consumption (~180mA for Standard, ~350mA for Heavy).
+
+| Battery Capacity | Standard Mode (Est.) | Performance Mode (Est.) |
+| :--- | :--- | :--- |
+| **1500 mAh** | ~7 Hours | ~3.5 Hours |
+| **3000 mAh** | ~14 Hours | ~7 Hours |
+| **5000 mAh** | ~23 Hours | ~12 Hours |
+
+> **Standard Mode:** WiFi Connected, Voice Assistant Ready, occasional interaction.
+> **Performance Mode:** Bluetooth Proxy enabled, Radar Sensor (LD2410) active, or continuous audio playback.
+
+## Future Roadmap
+
+*   **AI Answering Machine:** Integration for received AI voice messages like appointment reminders, birthday calendar, or general notifications.
+    *   **Features:** Visual signaling (LED blinking) for waiting messages. Playback upon lifting the handset.
+
 
 
 
