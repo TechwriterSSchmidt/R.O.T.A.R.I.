@@ -7,32 +7,7 @@
 
 namespace rotary {
 
-/**
- * Sends a command to the DY-SV17F MP3 Player via UART.
- * Protocol: AA <CMD> <LEN> <DATA...> <CHECKSUM>
- */
-void play_mp3_file(esphome::uart::UARTComponent *uart, int file_num) {
-    uint8_t high = (file_num >> 8) & 0xFF;
-    uint8_t low = file_num & 0xFF;
-    // AA 07 02 High Low
-    std::vector<uint8_t> cmd = {0xAA, 0x07, 0x02, high, low};
-    uint8_t sum = 0;
-    for (uint8_t b : cmd) sum += b;
-    
-    uart->write_array(cmd);
-    uart->write_byte(sum);
-}
 
-void set_mp3_volume(esphome::uart::UARTComponent *uart, float volume_val) {
-    uint8_t vol = (uint8_t)volume_val;
-    // AA 13 01 Vol
-    std::vector<uint8_t> cmd = {0xAA, 0x13, 0x01, vol};
-    uint8_t sum = 0;
-    for (uint8_t b : cmd) sum += b;
-
-    uart->write_array(cmd);
-    uart->write_byte(sum);
-}
 
 /**
  * Calculates battery level percentage from voltage.

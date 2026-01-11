@@ -5,11 +5,12 @@ esphome:
   includes:
     - src/rotary_helpers.h
   platformio_options:
-    board_build.flash_mode: dio
     # LilyGO T7-S3 16MB Flash / 8MB PSRAM Specifics
-    board_build.arduino.memory_type: qio_opi
+    board_build.arduino.memory_type: qio_opi 
+    board_build.flash_mode: qio
     build_flags:
       - "-DBOARD_HAS_PSRAM"
+      - "-DARDUINO_USB_CDC_ON_BOOT=1"
 
 # Hardware Pin Definitions
 # Change these values here to adapt to different board revisions
@@ -28,8 +29,6 @@ substitutions:
   # Peripherals
   pin_led_strip: GPIO2
   pin_battery_voltage: GPIO4
-  pin_uart_tx: GPIO43
-  pin_uart_rx: GPIO44
   
   # I2C Bus
   pin_i2c_sda: GPIO8
@@ -60,6 +59,7 @@ esp32:
 
 # Enable logging
 logger:
+  hardware_uart: USB_SERIAL_JTAG
 
 # Enable debug component
 debug:
@@ -353,13 +353,6 @@ drv2605:
   motor_type: LRA       
   library: 6            # 6 = TS2200_F (LRA library)
 
-# UART for DY-SV17F Audio Module
-uart:
-  - id: uart_bus_dfplayer
-    tx_pin: ${pin_uart_tx}
-    rx_pin: ${pin_uart_rx}
-    baud_rate: 9600
-
 # Sensors
 sensor:
   - platform: adc
@@ -427,7 +420,7 @@ globals:
   - id: multi_digit_mode
     type: bool
     restore_value: yes
-    initial_value: 'false'
+    initial_value: 'true'
   - id: dialed_number_buffer
     type: std::string
     restore_value: no
@@ -435,7 +428,7 @@ globals:
   - id: dial_string_timeout_ms
     type: int
     restore_value: yes
-    initial_value: '3000'
+    initial_value: '2000'
   - id: is_muted
     type: bool
     restore_value: no
@@ -469,19 +462,6 @@ number:
       - globals.set:
           id: dial_string_timeout_ms
           value: !lambda 'return x;'
-
-  - platform: template
-    name: "Phone Volume"
-    id: phone_volume
-    icon: "mdi:volume-high"
-    min_value: 0
-    max_value: 30
-    step: 1
-    initial_value: 20
-    optimistic: true
-    restore_value: true
-    set_action:
-      - lambda: 'rotary::set_mp3_volume(id(uart_bus_dfplayer), x);'
 
   - platform: template
     name: "Ringtone Count"
@@ -541,6 +521,17 @@ switch:
     optimistic: true
 
   - platform: template
+    name: "Find R.O.T.A.R.I."
+    id: find_rotari_switch
+    icon: "mdi:target-variant"
+    optimistic: true
+    turn_on_action:
+      - script.execute: find_phone
+    turn_off_action:
+      - script.stop: find_phone
+      - light.turn_off: button_leds
+
+  - platform: template
     name: "Haptic Ringing"
     id: haptic_ringing
     icon: "mdi:vibrate"
@@ -580,20 +571,6 @@ button:
 
 # Scripts
 script:
-  # Play MP3 via DY-SV17F (Play by File Number)
-  - id: play_mp3
-    parameters:
-      file_num: int
-    then:
-      - lambda: 'rotary::play_mp3_file(id(uart_bus_dfplayer), file_num);'
-
-  # Stop MP3 Playback
-  - id: stop_mp3
-    then:
-      - uart.write: 
-          id: uart_bus_dfplayer
-          data: [0xAA, 0x04, 0x00, 0xAE]
-
   # Process and send dialed string
   - id: flush_dialed_number
     then:
@@ -601,7 +578,11 @@ script:
           condition:
             lambda: 'return id(dialed_number_buffer).length() > 0;'
           then:
-            # Check for Magic Code "999" -> Reboot
+            - logger.log: 
+                format: "Dialed string processing: %s"
+                args: [ 'id(dialed_number_buffer).c_str()' ]
+            
+            # --- Phonebook & Routing ---
             - if:
                 condition:
                    lambda: 'return id(dialed_number_buffer) == "999";'
@@ -609,13 +590,28 @@ script:
                    - logger.log: "Magic Code 999: System Reboot"
                    - button.press: sys_restart
                 else:
-                   - homeassistant.event:
-                       event: esphome.rotary_phone_dial_string
-                       data_template:
-                         number: !lambda 'return id(dialed_number_buffer);'
-                   - logger.log: 
-                       format: "Dialed String sent: %s"
-                       args: [ 'id(dialed_number_buffer).c_str()' ]
+                  - if:
+                      condition: 
+                        lambda: 'return id(dialed_number_buffer) == "110";'
+                      then:
+                        - logger.log: "Phonebook '110': Starting Voice Assistant A"
+                        - voice_assistant.start
+                      else:
+                        - if:
+                            condition:
+                              lambda: 'return id(dialed_number_buffer) == "112";'
+                            then:
+                              - logger.log: "Phonebook '112': Starting Voice Assistant B"
+                              # Hint: Add 'pipeline_id: xxxx' here if needed
+                              - voice_assistant.start 
+                            else:
+                               # Default: Send to Home Assistant
+                               - homeassistant.event:
+                                   event: esphome.rotary_phone_dial_string
+                                   data_template:
+                                     number: !lambda 'return id(dialed_number_buffer);'
+                               - logger.log: "Unknown number, sent event to Home Assistant."
+
             - globals.set:
                 id: dialed_number_buffer
                 value: '""'
@@ -678,65 +674,14 @@ script:
                 then:
                   - logger.log: "Ghost pulse detected (Count > 20), ignoring."
                 else:
-                  - if:
-                      condition:
-                        lambda: 'return id(multi_digit_mode);'
-                      then:
-                        # MULTI-DIGIT MODE
-                        - lambda: |-
-                            int digit = (id(dial_pulse_count) == 10) ? 0 : id(dial_pulse_count);
-                            id(dialed_number_buffer) += std::to_string(digit);
-                            ESP_LOGD("dial", "Digit added. Buffer: %s", id(dialed_number_buffer).c_str());
-                        - script.stop: flush_dialed_number_timer
-                        - script.execute: flush_dialed_number_timer
-                      else:
-                        # SINGLE DIGIT MODE
-                        # Magic Code: 0 -> Start Voice Assistant Manual
-                        - if:
-                            condition:
-                              lambda: 'return (id(dial_pulse_count) == 10);'
-                            then:
-                              - lambda: 'id(my_tone_gen).stop_tone();'
-                              
-                              # Start Ringback Tone (Pulsing: 1s ON, 4s OFF) in Handset
-                              - lambda: 'id(my_tone_gen).start_tone(425.0, true);'
-                              - logger.log: "Ringback Tone started (Handset)..."
-
-                              # Check time since last conversation (hangup)
-                              - if:
-                                  condition:
-                                    lambda: 'return (millis() - id(hook_down_timestamp)) > 60000;'
-                                  then:
-                                    # > 60s: Standard Mode (2-3 Rings)
-                                    - logger.log: "Operator Mode: Standard (Gap > 60s)"
-                                    - delay: !lambda 'return ((rand() % 2) + 2) * 5000;' 
-                                    
-                                    # Operator picks up -> Stop Ringing
-                                    - lambda: 'id(my_tone_gen).stop_tone();'
-                                    
-                                    # Play Standard Greeting (Simulated by TTS Pause or Noise)
-                                    - delay: 1s
-                                    # Voice assistant already configured to answer politely via Prompt
-                                    
-                                    - voice_assistant.start:
-                                  else:
-                                    # < 60s: Annoyed Mode (1 Ring)
-                                    - logger.log: "Operator Mode: Annoyed (Gap < 60s)"
-                                    - delay: 5000ms
-                                    
-                                    # Operator picks up -> Stop Ringing
-                                    - lambda: 'id(my_tone_gen).stop_tone();'
-
-                                    # Play Annoyed Greeting (Simulated by TTS Pause or Noise)
-                                    - delay: 500ms
-                                    # Voice assistant configured to answer annoyed via Prompt
-                                    
-                                    - voice_assistant.start:
-                            else:
-                              - homeassistant.event:
-                                  event: esphome.rotary_phone_dial
-                                  data_template:
-                                    digit: !lambda 'return (id(dial_pulse_count) == 10) ? 0 : id(dial_pulse_count);'
+                  # Removed Single-Digit Mode switch.
+                  # Always buffering digits now (Phonebook logic).
+                  - lambda: |-
+                      int digit = (id(dial_pulse_count) == 10) ? 0 : id(dial_pulse_count);
+                      id(dialed_number_buffer) += std::to_string(digit);
+                      ESP_LOGD("dial", "Digit added. Buffer: %s", id(dialed_number_buffer).c_str());
+                  - script.stop: flush_dialed_number_timer
+                  - script.execute: flush_dialed_number_timer
       
       - globals.set:
           id: dial_pulse_count
@@ -754,15 +699,6 @@ script:
                 condition:
                   binary_sensor.is_on: phone_hook
                 then:
-                  # Play Audio
-                  - if:
-                      condition:
-                         lambda: 'return id(phone_volume).state > 0;'
-                      then:
-                        - script.execute:
-                            id: play_mp3
-                            file_num: 1 # 00001.wav / .mp3
-                  
                   # Vibration
                   - if:
                       condition:
@@ -770,7 +706,7 @@ script:
                       then:
                         - if:
                             condition:
-                              lambda: 'return id(vibration_pattern).state == "Mechanical Bell";'
+                              lambda: 'return id(vibration_pattern).active_index().value_or(0) == 1;'
                             then:
                               - repeat:
                                   count: 25 # Faster, more aggressive for Bell mechanics (Total ~750ms)
