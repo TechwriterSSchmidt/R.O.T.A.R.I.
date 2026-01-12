@@ -617,36 +617,37 @@ script:
             - logger.log: 
                 format: "Dialed string processing: %s"
                 args: [ 'id(dialed_number_buffer).c_str()' ]
+
+            # 1. Fire Home Assistant Event (Logic)
+            - homeassistant.event:
+                event: esphome.rotary_dial
+                data:
+                  number: !lambda 'return id(dialed_number_buffer);'
+
+            # 2. Update Text Sensor (Display)
+            - text_sensor.template.publish:
+                id: dialed_number_string
+                state: !lambda 'return id(dialed_number_buffer);'
             
-            # --- Phonebook & Routing ---
+            # 3. Local System Actions (Low Latency / Offline fallback)
             - if:
                 condition:
                    lambda: 'return id(dialed_number_buffer) == "999";'
                 then:
                    - logger.log: "Magic Code 999: System Reboot"
                    - button.press: sys_restart
-                else:
-                  - if:
-                      condition: 
-                        lambda: 'return id(dialed_number_buffer) == "110";'
-                      then:
-                        - logger.log: "Phonebook '110': Starting Voice Assistant A"
-                        - voice_assistant.start
-                      else:
-                        - if:
-                            condition:
-                              lambda: 'return id(dialed_number_buffer) == "112";'
-                            then:
-                              - logger.log: "Phonebook '112': Starting Voice Assistant B"
-                              # Hint: Add 'pipeline_id: xxxx' here if needed
-                              - voice_assistant.start 
-                            else:
-                               # Default: Send to Home Assistant
-                               - homeassistant.event:
-                                   event: esphome.rotary_phone_dial_string
-                                   data_template:
-                                     number: !lambda 'return id(dialed_number_buffer);'
-                               - logger.log: "Unknown number, sent event to Home Assistant."
+            
+            # Dialing '0' starts local Voice Assistant immediately
+            - if:
+                condition: 
+                  lambda: 'return id(dialed_number_buffer) == "0";'
+                then:
+                  - voice_assistant.start
+
+            # 4. Clear Buffer
+            - globals.set:
+                id: dialed_number_buffer
+                value: ""
 
             - globals.set:
                 id: dialed_number_buffer

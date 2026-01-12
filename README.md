@@ -106,6 +106,56 @@ The 4 buttons on the device provide local control and visual feedback via the 4-
 | **Error** | 🔴 Red | Blinking |
 | **Muted** | 🟣 Purple | Pulsing (on LED 2) |
 
+## Home Assistant Integration
+
+The device is designed to be a "dumb input, smart output" terminal. It acts as a physical interface for your Home Assistant logic.
+
+### Event Reference
+
+Trigger your automations using these Events (available in HA under `Developer Tools -> Events` to test):
+
+| Trigger Source | Event Name (`event_type`) | Data Payload (`trigger.event.data`) | Description |
+| :--- | :--- | :--- | :--- |
+| **Rotary Dial** | `esphome.rotary_dial` | `number` (e.g., "110", "1") | Fired when a number is dialed and the timeout expires. Primary way to control logic. |
+| **Buttons 2-4** | `esphome.rotary_phone_button` | `button` (e.g., "2", "3", "4") | Fired when one of the custom buttons is pressed. |
+| **Hook Flash** | `esphome.rotary_phone_flash` | - | Fired when the hook is tapped briefly (short press). |
+| **Low Battery** | `esphome.rotary_phone_low_battery` | - | Fired once when the battery voltage drops below the threshold. |
+
+### Example Audio Automation (The "Phonebook")
+
+Instead of saving numbers on the device, handle them in Home Assistant:
+
+```yaml
+alias: "Rotary Phone Logic"
+mode: queued
+trigger:
+  - platform: event
+    event_type: esphome.rotary_dial
+action:
+  - choose:
+      # Option 1: Call Mama
+      - conditions: "{{ trigger.event.data.number == '1' }}"
+        sequence:
+          - service: tts.google_say
+            data:
+              entity_id: media_player.rotary_phone_handset_speaker
+              message: "Calling Mama..."
+          # Add notify / VoIP calls here
+      
+      # Option 2: Activate "Cinema Mode"
+      - conditions: "{{ trigger.event.data.number == '42' }}"
+        sequence:
+          - service: scene.turn_on
+            target: { entity_id: scene.living_room_cinema }
+            
+    # Default: Unknown Number
+    default:
+      - service: tts.google_say
+        data:
+          entity_id: media_player.rotary_phone_handset_speaker
+          message: "The number {{ trigger.event.data.number }} is not in service."
+```
+
 ## Required Sound Files
 
 The firmware controls a DY-SV17F MP3 module which requires specific filenames on the internal 4mb flash (FAT32 formatted).

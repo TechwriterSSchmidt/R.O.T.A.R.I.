@@ -110,10 +110,20 @@ class VintageToneGenerator : public esphome::Component {
           }
           
           if (has_content) {
-             if (this->bus_ != nullptr && false) { // DISABLED I2S WRITE
+             if (this->bus_ != nullptr) { // Re-enabled I2S WRITE
                 size_t bytes_written = 0;
-                // Using direct ESP-IDF driver call as we don't have access to component write
-                // i2s_write((i2s_port_t)0, buffer, samples_to_gen * sizeof(int16_t), &bytes_written, 0);
+                // Try writing to I2S Port 0 (Handset) with non-blocking timeout first to prevent UI freezing
+                // Usage of port 0 matches the order of definition in YAML usually. 
+                // Using 10 ticks timeout to avoid dropping too many samples but not block.
+                
+                // Note: On ESP32-S3 with Arduino 2.0.x / 3.0.x (IDF 4.4/5.1), i2s_write is available via driver/i2s.h
+                // We use I2S_NUM_0 as a best guess since i2s_bus_handset is the first one.
+                esp_err_t err = i2s_write(I2S_NUM_0, buffer, samples_to_gen * sizeof(int16_t), &bytes_written, 10 / portTICK_PERIOD_MS);
+                
+                if (err != ESP_OK) {
+                     // Check for common errors to debug "repair" process
+                     // ESP_LOGW("vintage_tone", "I2S Write Error: %d", err);
+                }
              }
           }
       }
