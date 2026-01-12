@@ -48,9 +48,9 @@ The device differentiates between two main usage modes based on the handset stat
 ### 1. Call Mode (Handset Lifted)
 *   **Trigger:** Lift the handset (Off-Hook) or activate Speakerphone.
 *   **Behavior:** Full vintage simulation. You hear dial tones, dialing clicks, and connection noise.
-*   **Actions:**
-    *   Dial `0`: Connect to Voice Assistant.
-    *   Dial `1..9`: Simulate a phone call to Home Assistant (fires event with delay).
+*   **Actions:** All dialed numbers (including '0') generate an `esphome.rotary_dial` event in Home Assistant. 
+    *   **Logic is now fully controlled by Home Assistant.** 
+    *   Create an automation in HA to trigger the voice assistant service `esphome.rotary_phone_start_listening` when specific numbers are dialed.
 
 ### 2. Command Mode (Handset on Cradle)
 *   **Trigger:** Rotate the dial while the phone is On-Hook.
@@ -184,7 +184,29 @@ action:
               message: "Calling Mama..."
           # Add notify / VoIP calls here
       
-      # Option 2: Activate "Cinema Mode" (Command Mode Example)
+      # Option 2: Local AI (Home Control)
+      # Switch to "Local Pipeline" and listen
+      - conditions: "{{ trigger.event.data.number == '42' }}"
+        sequence:
+          - service: select.select_option
+            target:
+              entity_id: select.rotary_phone_pipeline
+            data:
+              option: "Home Assistant" # Name of your Local Pipeline
+          - service: esphome.rotary_phone_start_listening
+
+      # Option 3: Cloud AI (ChatGPT / DeepSeek)
+      # Switch to "Cloud Pipeline" and listen
+      - conditions: "{{ trigger.event.data.number == '666' }}"
+        sequence:
+          - service: select.select_option
+            target:
+              entity_id: select.rotary_phone_pipeline
+            data:
+              option: "LLM Cloud Pipeline" # Name of your Cloud Pipeline
+          - service: esphome.rotary_phone_start_listening
+      
+      # Option 4: Activate "Cinema Mode" (Command Mode Example)
       - conditions: "{{ trigger.event.data.number == '5' }}"
         sequence:
           - service: scene.turn_on

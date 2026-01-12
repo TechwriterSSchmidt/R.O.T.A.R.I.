@@ -8,6 +8,7 @@
 *   **Dual Mode Logic:**
     *   **Call Mode:** Lifting the handset triggers full vintage simulation (dial tones, noise).
     *   **Command Mode:** Dialing while on-hook sends immediate commands to HA without audio feedback.
+*   **"AI-Agnostic" Dialing:** Removed hardcoded logic for dialing '0'. The device now exposes a `start_listening` service. This allows Home Assistant automations to map different numbers to different AI Pipelines (e.g. Dial 1 for Home Control, 0 for ChatGPT).
 
 ### 🛡 Stability
 *   **Safe Mode:** Enabled `safe_mode` to prevent boot loops during configuration errors.
