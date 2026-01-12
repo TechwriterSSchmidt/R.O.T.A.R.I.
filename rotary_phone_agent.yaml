@@ -4,6 +4,7 @@ esphome:
   min_version: 2024.7.0
   includes:
     - src/rotary_helpers.h
+    - components/mux_speaker/mux_speaker.h
   platformio_options:
     board_build.flash_mode: dio
     # Generic ESP32-S3 16MB Flash / 8MB PSRAM Specifics
@@ -50,7 +51,7 @@ external_components:
   - source:
       type: local
       path: components
-    components: [ drv2605, vintage_tone_generator ]
+    components: [ drv2605, vintage_tone_generator, mux_speaker ]
 
 esp32:
   board: esp32-s3-devkitc-1
@@ -133,11 +134,23 @@ vintage_tone_generator:
 
 speaker:
   # Handset Speaker (Standard for Voice Assistant)
-  - platform: i2s_audio
-    id: speaker_handset
-    i2s_audio_id: i2s_bus_handset
-    i2s_dout_pin: ${pin_i2s_handset_dout}
-    dac_type: external
+  #- platform: i2s_audio
+  #  id: speaker_handset
+  #  i2s_audio_id: i2s_bus_handset
+  #  i2s_dout_pin: ${pin_i2s_handset_dout}
+  #  dac_type: external
+  
+  # Smart Mux Speaker (Routing based on Mode)
+  - platform: mux_speaker
+    id: speaker_handset # Keeping ID for compatibility
+    handset_bus: i2s_bus_handset
+    base_bus: i2s_bus_base
+    mode_switch: speaker_mode
+    # Note: Standard I2S pins are defined in i2s_audio components,
+    # and this virtual speaker routes writes to them.
+    # We must ensure the actual I2S buses are initialized.
+
+
 
 # Media Player for Ringtones & Music (Base Speaker)
 media_player:
