@@ -243,7 +243,7 @@ voice_assistant:
         red: 100%
         green: 0%
         blue: 0%
-    - delay: 2s
+    - delay: 3s
     - light.turn_off: led_status
 
 # LED Configuration (4 Separate Neopixels)
@@ -262,8 +262,8 @@ light:
       - pulse:
           name: "Thinking Pulse"
           transition_length: 500ms
-          update_interval: 1000ms
-          min_brightness: 10%
+          update_interval: 10ms
+          min_brightness: 5%
           max_brightness: 100%
       - addressable_lambda:
           name: "Battery Level"
