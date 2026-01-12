@@ -261,6 +261,9 @@ light:
           colors:
             - state: true
               brightness: 100%
+              red: 100%
+              green: 0%
+              blue: 0%
               duration: 200ms
             - state: false
               duration: 200ms
