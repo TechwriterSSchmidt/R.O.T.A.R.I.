@@ -89,6 +89,9 @@ api:
     - service: stop_broadcast_notification
       then:
         - light.turn_off: button_leds
+    - service: start_listening
+      then:
+        - voice_assistant.start
 
 # Enable OTA updates
 ota:
@@ -705,13 +708,6 @@ script:
                    - logger.log: "Magic Code 999: System Reboot"
                    - button.press: sys_restart
             
-            # Dialing '0' starts local Voice Assistant immediately
-            - if:
-                condition: 
-                  lambda: 'return id(dialed_number_buffer) == "0";'
-                then:
-                  - voice_assistant.start
-
             # 4. Clear Buffer & Silence Tone (Ready for TTS)
             - lambda: 'id(my_tone_gen).stop_tone();'
             
