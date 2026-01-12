@@ -58,6 +58,10 @@ The device differentiates between two main usage modes based on the handset stat
 *   **Actions:**
     *   Dial `1..9`: Sends instant events to Home Assistant. Ideal for scenarios like "Dial 1 to toggle lights" or "Dial 5 for Cinema Mode".
 
+### 3. Incoming Call Mode (Ringing)
+*   **Accept:** Lift handset. Ringing stops immediately.
+*   **Reject:** Lift handset and immediately place it back on the cradle (hang up).
+
 ## Hardware Support & Pinout
 
 **Target Board:** WEMOS S3 Pro (ESP32-S3)
@@ -220,6 +224,52 @@ action:
           entity_id: media_player.rotary_phone_handset_speaker
           message: "The number {{ trigger.event.data.number }} is not in service."
 ```
+
+### 4. Answering Machine (Home Assistant Logic)
+
+Since the R.O.T.A.R.I. phone is fully integrated into Home Assistant, you can recreate a **classic Answering Machine** (or "Voicemail") experience purely via automation. 
+When you dial "1" (classic shortcut), Home Assistant will read out your critical notifications or calendar events using a synthesized voice, complete with authentic pauses.
+
+#### Example Automation (YAML)
+Add this to your `automations.yaml` or create a new automation in the GUI:
+
+```yaml
+alias: "Rotary Phone - Answering Machine"
+description: "Reads notifications when '1' is dialed."
+trigger:
+  - platform: event
+    event_type: esphome.rotary_dial
+    event_data:
+      number: "1"
+condition: []
+action:
+  # 1. Visual Feedback: The Phone LEDs turn Blue via firmware automatically when playing media.
+  
+  # 2. Greeting (Authentic 70s Style)
+  - service: tts.speak
+    target:
+      entity_id: tts.piper  # Or tts.google_en_com
+    data:
+      media_player_entity_id: media_player.rotary_phone_base_speaker
+      message: >
+        You have... {{ states('sensor.number_of_notifications') }} ... new messages.
+        
+        First message...
+        
+        {{ states('sensor.first_notification_content') }}
+        
+        ... Beep.
+
+  # 3. Optional: Clear notifications after reading
+  # - service: persistent_notification.dismiss_all
+```
+
+#### How it feels:
+1.  **Dial "1"**: You hear the rotary click back.
+2.  **Silence**: A short pause (processing).
+3.  **Voice**: "You have... two... new messages." (Audio plays through the base speaker or handset if lifted).
+4.  **LEDs**: While speaking, the LEDs glow **Blue** (handled by firmware `on_play` event).
+
 
 ## Maintenance
 

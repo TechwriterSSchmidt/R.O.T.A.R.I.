@@ -1,18 +1,3 @@
-esphome:
-  name: rotary-phone-agent
-  friendly_name: "R.O.T.A.R.I."
-  min_version: 2024.7.0
-  includes:
-    - src/rotary_helpers.h
-    - components/mux_speaker/mux_speaker.h
-  platformio_options:
-    board_build.flash_mode: dio
-    # Generic ESP32-S3 16MB Flash / 8MB PSRAM Specifics
-    board_build.arduino.memory_type: qio_opi
-    build_flags:
-      - "-DBOARD_HAS_PSRAM"
-      - "-DARDUINO_USB_CDC_ON_BOOT=1"
-
 # Hardware Pin Definitions
 # Change these values here to adapt to different board revisions
 substitutions:
@@ -65,10 +50,29 @@ logger:
   hardware_uart: USB_CDC
   level: DEBUG
 
-
-
-# Enable debug component
-debug:
+# Boot Animation
+esphome:
+  name: rotary-phone-agent
+  friendly_name: "R.O.T.A.R.I."
+  min_version: 2024.7.0
+  includes:
+    - src/rotary_helpers.h
+    - components/mux_speaker/mux_speaker.h
+  platformio_options:
+    board_build.flash_mode: dio
+    # Generic ESP32-S3 16MB Flash / 8MB PSRAM Specifics
+    board_build.arduino.memory_type: qio_opi
+    build_flags:
+      - "-DBOARD_HAS_PSRAM"
+      - "-DARDUINO_USB_CDC_ON_BOOT=1"
+  on_boot:
+    priority: -100
+    then:
+      - light.turn_on:
+          id: button_leds
+          effect: "Boot Chase"
+      - delay: 5s
+      - light.turn_off: button_leds
 
 # Enable Home Assistant API
 api:
@@ -183,13 +187,13 @@ voice_assistant:
   on_start:
     - if:
         condition:
-          switch.is_on: mic_mute
+          switch.is_on: dnd_mode
         then:
           - voice_assistant.stop:
-          - logger.log: "Voice Assistant blocked because of Mute"
+          - logger.log: "Voice Assistant blocked because of DND"
           - light.turn_on:
               id: button_leds
-              effect: "Mute Pulse"
+              effect: "DND Pulse"
         else:
           - light.turn_on:
               id: button_leds
@@ -200,31 +204,7 @@ voice_assistant:
               range_to: 1
               red: 0%
               green: 0%
-              blue: 0%
-          # Fade Green In
-          - light.addressable_set:
-              id: button_leds
-              range_from: 0
-              range_to: 1
-              red: 0%
-              green: 20%
-              blue: 0%
-          - delay: 100ms
-          - light.addressable_set:
-              id: button_leds
-              range_from: 0
-              range_to: 1
-              red: 0%
-              green: 60%
-              blue: 0%
-          - delay: 100ms
-          - light.addressable_set:
-              id: button_leds
-              range_from: 0
-              range_to: 1
-              red: 0%
-              green: 100%
-              blue: 0%
+              blue: 100% # Listening = Blue Static
 
   on_stt_end:
     - light.turn_on: 
@@ -233,7 +213,16 @@ voice_assistant:
 
   on_tts_start:
     # Speaking - optionally dim or off. "Off to allow conversation"
-    - light.turn_off: button_leds
+    - light.turn_on:
+        id: button_leds
+        effect: "none"
+    - light.addressable_set:
+        id: button_leds
+        range_from: 0
+        range_to: 1
+        red: 0%
+        green: 0%
+        blue: 100%
 
   on_end:
     # Busy Tone after call (425Hz, 480ms ON, 480ms OFF)
@@ -261,75 +250,97 @@ light:
     restore_mode: ALWAYS_OFF
     
     # Simulates incandescent fading (Gamma/Tungsten)
-    default_transition_length: 0s 
+    # default_transition_length: 500ms 
 
     effects:
       - addressable_scan:
       
-      # Mute Pulse (Purple on LED 2 - Index 1)
+      # Boot Chase (Lauflicht 1-4)
       - addressable_lambda:
-          name: "Mute Pulse"
-          update_interval: 50ms # 20fps for smooth animation
+          name: "Boot Chase"
+          update_interval: 50ms
           lambda: |-
-            static float progress = 0.0;
-            static float direction = 0.05;
+            int speed_ms = 250;
+            int pos = (millis() / speed_ms) % 4;
             
-            // Sine-wave approximation for incandescent feel
-            progress += direction;
-            if (progress > 1.0) { progress = 1.0; direction = -0.05; }
-            if (progress < 0.1) { progress = 0.1; direction = 0.05; }
-            
-            float brightness = progress * progress; // Gamma correctionish
             it.all() = Color::BLACK;
-            if (it.size() > 0) it[0] = Color(128, 0, 128) * brightness;
+            if (pos < it.size()) {
+               // Warm White active LED
+               it[pos] = Color(255, 200, 150);
+            }
 
-      # Thinking Pulse (Blue on LED 1 - Index 0)
+      # DND Pulse (Warm Tungsten)
+      - addressable_lambda:
+          name: "DND Pulse"
+          update_interval: 50ms
+          lambda: |-
+            // 2s period
+            float phase = (millis() % 2000) / 2000.0f * 6.28318f; // 2*PI
+            float val = (sin(phase) + 1.0f) / 2.0f;
+            // Linearer für Sichtbarkeit auf einzelner LED
+            float b = 0.2f + (0.8f * val); 
+
+            it.all() = Color::BLACK;
+            if (it.size() > 0) {
+               // Orange-Red DND color (255, 80, 0)
+               it[0] = Color( (int)(255 * b), (int)(80 * b), 0 );
+            }
+
+      # Thinking Pulse (Soft Blue) - 0.75Hz
       - addressable_lambda:
           name: "Thinking Pulse"
-          update_interval: 50ms
+          update_interval: 20ms
           lambda: |-
-            static float progress = 0.0;
-            static float direction = 0.1;
+            // 2s period (0.5Hz)
+            float phase = (millis() % 2000) / 2000.0f * 6.28318f;
+            float val = (sin(phase) + 1.0f) / 2.0f;
+            float b = val * val; 
             
-            progress += direction;
-            if (progress > 1.0) { progress = 1.0; direction = -0.05; } // Fast on
-            if (progress < 0.0) { progress = 0.0; direction = 0.05; }  // Slow off
-            
-            float brightness = progress * progress; 
             it.all() = Color::BLACK;
-            if (it.size() > 0) it[0] = Color(0, 0, 255) * brightness;
+            if (it.size() > 0) {
+               it[0] = Color( (int)(30 * b), (int)(30 * b), (int)(255 * b) );
+            }
 
-      # Error Pulse (Red on LED 1 - Index 0)
+      # Error Pulse (Soft Red) - 0.75Hz max
       - addressable_lambda:
           name: "Error Pulse"
-          update_interval: 50ms
+          update_interval: 20ms
           lambda: |-
-            static float progress = 0.0;
-            static float direction = 0.2; // Faster blink
+            // 1.5s period (0.66Hz)
+            float phase = (millis() % 1500) / 1500.0f * 6.28318f;
+            float val = (sin(phase) + 1.0f) / 2.0f;
+            float b = val * val;
             
-            progress += direction;
-            if (progress > 1.0) { progress = 1.0; direction = -0.2; }
-            if (progress < 0.0) { progress = 0.0; direction = 0.2; }
-            
-            float brightness = progress * progress;
             it.all() = Color::BLACK;
-            if (it.size() > 0) it[0] = Color(255, 0, 0) * brightness;
+            if (it.size() > 0) {
+              it[0] = Color( (int)(255 * b), 0, 0 );
+            }
 
-      # Broadcast Pulse (Yellow on LED 4 - Index 3)
+      # Find Phone Pulse (Red) - 0.75Hz max
+      - addressable_lambda:
+          name: "Find Phone Pulse"
+          update_interval: 20ms
+          lambda: |-
+             // 1.4s period (~0.7Hz)
+             float phase = (millis() % 1400) / 1400.0f * 6.28318f;
+             float val = (sin(phase) + 1.0f) / 2.0f;
+             float b = val * val;
+
+             it.all() = Color( (int)(255 * b), 0, 0 );
+
+      # Broadcast Pulse (Yellow)
       - addressable_lambda:
           name: "Broadcast Pulse"
-          update_interval: 50ms
+          update_interval: 20ms
           lambda: |-
-            static float progress = 0.0;
-            static float direction = 0.05;
+            float phase = (millis() % 2000) / 2000.0f * 6.28318f;
+            float val = (sin(phase) + 1.0f) / 2.0f;
+            float b = val * val;
             
-            progress += direction;
-            if (progress > 1.0) { progress = 1.0; direction = -0.05; }
-            if (progress < 0.0) { progress = 0.0; direction = 0.05; }
-            
-            float brightness = progress * progress;
             it.all() = Color::BLACK;
-            if (it.size() > 0) it[0] = Color(255, 200, 0) * brightness;
+            if (it.size() > 0) {
+               it[0] = Color( (int)(255 * b), (int)(180 * b), 0 );
+            }
 
       # Battery Level Indicator (Static with fade-in on start)
       - addressable_lambda:
@@ -389,26 +400,24 @@ sensor:
             then:
               - if:
                   condition:
-                    not:
-                      script.is_running: led_pulse_red_battery
+                    lambda: 'return id(button_leds).get_effect_name() != "Error Pulse";'
                   then:
-                    - script.execute: led_pulse_red_battery
+                    - light.turn_on: 
+                        id: button_leds
+                        effect: "Error Pulse"
                     - homeassistant.event:
                         event: esphome.rotary_phone_low_battery
                     - logger.log: "Battery Low! Starting alarm."
             else:
               - if:
                   condition:
-                    script.is_running: led_pulse_red_battery
+                    lambda: 'return id(button_leds).get_effect_name() == "Error Pulse";'
                   then:
-                    - script.stop: led_pulse_red_battery
-                    - light.addressable_set:
+                    - light.turn_on: 
                         id: button_leds
-                        range_from: 3
-                        range_to: 4
-                        red: 0%
-                        green: 0%
-                        blue: 0%
+                        effect: "none"
+                    # Restore battery view momentarily or just off
+                    - light.turn_off: button_leds
                     - logger.log: "Battery OK. Stopping alarm."
 
   - platform: template
@@ -438,10 +447,6 @@ globals:
   - id: hook_down_timestamp
     type: unsigned long
     initial_value: '0'
-  - id: multi_digit_mode
-    type: bool
-    restore_value: yes
-    initial_value: 'true'
   - id: dialed_number_buffer
     type: std::string
     restore_value: no
@@ -592,28 +597,35 @@ number:
 
 switch:
   - platform: template
-    name: "Microphone Mute"
-    id: mic_mute
-    icon: "mdi:microphone-off"
-    optimistic: true
-    on_turn_on:
-      - light.turn_on:
-          id: button_leds
-          effect: "Mute Pulse"
-    on_turn_off:
-      - light.turn_off: button_leds
-
-  - platform: template
-    name: "Speakerphone Mode"
-    id: speaker_mode
-    icon: "mdi:volume-high"
-    optimistic: true
-
-  - platform: template
     name: "Do Not Disturb"
     id: dnd_mode
     icon: "mdi:minus-circle"
     optimistic: true
+    on_turn_on:
+      - light.turn_on:
+          id: button_leds
+          effect: "DND Pulse"
+    on_turn_off:
+      - light.turn_off: button_leds
+
+  - platform: template
+    name: "Hands-free Mode"
+    id: speaker_mode
+    icon: "mdi:volume-high"
+    optimistic: true
+    on_turn_on:
+      - light.turn_on:
+          id: button_leds
+          effect: "none"
+      - light.addressable_set:
+           id: button_leds
+           range_from: 0
+           range_to: 1
+           red: 0%
+           green: 100%
+           blue: 0%
+    on_turn_off:
+      - light.turn_off: button_leds
 
   - platform: template
     name: "Find R.O.T.A.R.I."
@@ -633,19 +645,6 @@ switch:
     restore_mode: RESTORE_DEFAULT_ON
     optimistic: true
 
-  - platform: template
-    name: "Rotary Phone Multi-Digit Mode"
-    id: rotary_phone_multi_digit_mode
-    optimistic: true
-    turn_on_action:
-      - globals.set:
-          id: multi_digit_mode
-          value: 'true'
-    turn_off_action:
-      - globals.set:
-          id: multi_digit_mode
-          value: 'false'
-      - script.execute: flush_dialed_number
 
 select:
   - platform: template
@@ -699,7 +698,7 @@ script:
                    - button.press: sys_restart
             
             # 4. Clear Buffer & Silence Tone (Ready for TTS)
-            - lambda: 'id(my_tone_gen).stop_tone();'
+            # - lambda: 'id(my_tone_gen).stop_tone();'
             
             # Logic: Call vs Command
             - if:
@@ -709,29 +708,29 @@ script:
                     - switch.is_on: speaker_mode        # Freisprechen
                 then:
                     # ===== CALL MODE (Ringback) =====
-                    - lambda: |-
-                        int max_r = (int)id(setting_max_rings).state;
-                        if (max_r > 0) {
-                          id(my_tone_gen).start_ringback_tone();
-                          int random_loops = rand() % (max_r + 1);
-                          id(calculated_ring_delay) = random_loops * 4000;
-                          if (random_loops == 0) id(calculated_ring_delay) = 1500;
-                        } else {
-                          id(calculated_ring_delay) = 0;
-                        }
+                    # - lambda: |-
+                    #     int max_r = (int)id(setting_max_rings).state;
+                    #     if (max_r > 0) {
+                    #       id(my_tone_gen).start_ringback_tone();
+                    #       int random_loops = rand() % (max_r + 1);
+                    #       id(calculated_ring_delay) = random_loops * 4000;
+                    #       if (random_loops == 0) id(calculated_ring_delay) = 1500;
+                    #     } else {
+                    #       id(calculated_ring_delay) = 0;
+                    #     }
                     
                     # Wait for ringback
                     - delay: !lambda "return id(calculated_ring_delay);"
                     
                     # Stop Ringback & Click
-                    - lambda: 'id(my_tone_gen).stop_tone();'
+                    # - lambda: 'id(my_tone_gen).stop_tone();'
                     - delay: 100ms
-                    - lambda: 'id(my_tone_gen).trigger_click();'
+                    # - lambda: 'id(my_tone_gen).trigger_click();'
                     - delay: 500ms
                 else:
                     # ===== COMMAND MODE (Silent/Instant) =====
                     # Just ensure tone is off
-                    - lambda: 'id(my_tone_gen).stop_tone();'
+                    # - lambda: 'id(my_tone_gen).stop_tone();'
             
             - globals.set:
                 id: dialed_number_buffer
@@ -755,7 +754,9 @@ script:
   - id: find_phone
     mode: restart
     then:
-      - light.turn_on: button_leds
+      - light.turn_on: 
+          id: button_leds
+          effect: "Find Phone Pulse"
       - while:
           condition:
             lambda: 'return true;'
@@ -767,24 +768,9 @@ script:
                      script.is_running: ring_phone
                 then:
                    - script.execute: ring_phone
-
-            # Visual Alarm (All 4 LEDs Flash Red)
-            - light.addressable_set:
-                id: button_leds
-                range_from: 0
-                range_to: 4
-                red: 100%
-                green: 0%
-                blue: 0%
-            - delay: 200ms
-            - light.addressable_set:
-                id: button_leds
-                range_from: 0
-                range_to: 4
-                red: 0%
-                green: 0%
-                blue: 0%
-            - delay: 200ms
+            
+            # Just wait, LED effect handles the pulsing now
+            - delay: 1s
 
   - id: process_dialed_digit
     mode: restart
@@ -809,7 +795,6 @@ script:
                 then:
                   - logger.log: "Ghost pulse detected (Count > 20), ignoring."
                 else:
-                  # Removed Single-Digit Mode switch.
                   # Always buffering digits now (Phonebook logic).
                   - lambda: |-
                       int count = id(dial_pulse_count);
@@ -833,6 +818,21 @@ script:
   - id: ring_phone
     mode: restart
     then:
+      - if:
+          condition:
+            not:
+              switch.is_on: find_rotari_switch
+          then:
+            - light.turn_on:
+                 id: button_leds
+                 effect: "none"
+            - light.addressable_set:
+                 id: button_leds
+                 range_from: 0
+                 range_to: 1
+                 red: 100%
+                 green: 40%
+                 blue: 0%  # Amber/Gold for incoming call
       - repeat:
           count: !lambda |-
             return id(ring_count).state;
@@ -845,7 +845,10 @@ script:
                   # Vibration
                   - if:
                       condition:
-                        switch.is_on: haptic_ringing
+                        and:
+                          - switch.is_on: haptic_ringing
+                          - not:
+                              switch.is_on: dnd_mode
                       then:
                         - if:
                             condition:
@@ -875,58 +878,9 @@ script:
                       return id(ring_pause).state;
                 else:
                   - script.stop: ring_phone
+      
+      - light.turn_off: button_leds
 
-  - id: led_pulse_red_battery
-    mode: restart
-    then:
-      - while:
-          condition:
-            lambda: 'return true;'
-          then:
-            # Fade in
-            - light.addressable_set:
-                id: button_leds
-                range_from: 0
-                range_to: 1
-                red: 100%
-                green: 0%
-                blue: 0%
-            - delay: 1000ms
-            # Fade out
-            - light.addressable_set:
-                id: button_leds
-                range_from: 0
-                range_to: 1
-                red: 10%
-                green: 0%
-                blue: 0%
-            - delay: 1000ms
-
-  - id: led_pulse_purple_mute
-    mode: restart
-    then:
-      - while:
-          condition:
-            lambda: 'return id(is_muted);'
-          then:
-            # Fade in (Purple)
-            - light.addressable_set:
-                id: button_leds
-                range_from: 0
-                range_to: 1
-                red: 50%
-                green: 0%
-                blue: 50%
-            - delay: 1000ms
-            # Fade out
-            - light.addressable_set:
-                id: button_leds
-                range_from: 0
-                range_to: 1
-                red: 10%
-                green: 0%
-                blue: 10%
-            - delay: 1000ms
 
 # Binary Sensors
 binary_sensor:
@@ -943,19 +897,41 @@ binary_sensor:
       - delayed_off: 50ms
     on_press:
       # Hook Down (Call ended)
-      - lambda: |-
-          id(my_tone_gen).trigger_click();
-          id(my_tone_gen).stop_tone();
-      - voice_assistant.stop:
+      - logger.log: "Hook Down. Killing all audio."
+      # - lambda: |-
+      #     id(my_tone_gen).trigger_click();
+      #     id(my_tone_gen).stop_tone();
+      
+      # 1. Stop AI (Highest Priority)
+      # - voice_assistant.stop:
+
+      # 2. Stop Handset Audio (Voice Assistant is already stopped above)
+      
+      # 3. Stop Base Speaker Audio (Music/Announcements)
+      # - media_player.stop: media_player_base
+
+      # 4. Stop Ringing / Alarms
+
+      - script.stop: ring_phone
+      - script.stop: find_phone
+      
+      # 5. Stop Dial Buffer flushing
+      - script.stop: flush_dialed_number_timer
+      - script.stop: flush_dialed_number
+
+      # 6. Visual Cleanup
       - light.turn_off: button_leds
+      # - script.stop: led_pulse_purple_mute
+      
+      # 7. Reset Internal State
       - globals.set:
           id: hook_down_timestamp
           value: !lambda |-
             return millis();
-      - globals.set:
-          id: is_muted
-          value: 'false'
-      - script.stop: led_pulse_purple_mute
+      # - globals.set:
+      #     id: is_muted
+      #     value: 'false'
+
     on_release:
       # Hook Up (Call started)
       - if:
@@ -967,12 +943,15 @@ binary_sensor:
             - homeassistant.event:
                 event: esphome.rotary_phone_flash
             # Local Feedback - Click and Restart Tone (Interrupt effect)
-            - lambda: |-
-                id(my_tone_gen).trigger_click();
-                // Restart dial tone to simulate interruption
-                id(my_tone_gen).start_tone(425.0);
+            # - lambda: |-
+            #     id(my_tone_gen).trigger_click();
+            #     // Restart dial tone to simulate interruption
+            #     id(my_tone_gen).start_tone(425.0);
           else:
-            # Normal Pickup
+            # Normal Pickup (Answer Call / Start Dialing)
+            - script.stop: ring_phone
+            - script.stop: find_phone
+            
             - if:
                 condition:
                   media_player.is_playing: media_player_base
@@ -980,7 +959,7 @@ binary_sensor:
                   - media_player.stop: media_player_base
             
             # Start Dial Tone (Wait for user input)
-            - lambda: 'id(my_tone_gen).start_tone(425.0);'
+            # - lambda: 'id(my_tone_gen).start_tone(425.0);'
 
   # Speed Dial Buttons & Functions
   
@@ -1132,11 +1111,11 @@ binary_sensor:
       - delayed_off: 10ms
     on_press:
       then:
-        - lambda: 'id(my_tone_gen).start_white_noise(0.05);'
+        # - lambda: 'id(my_tone_gen).start_white_noise(0.05);'
         - globals.set:
             id: dial_pulse_count
             value: '0'
-        - voice_assistant.stop:
+        # - voice_assistant.stop:
         - script.stop: flush_dialed_number_timer
         - logger.log: "Dialing started..."
     on_release:
@@ -1158,7 +1137,7 @@ binary_sensor:
     on_press:
       then:
         # Acoustic tick (Click)
-        - lambda: 'id(my_tone_gen).trigger_click();'
+        # - lambda: 'id(my_tone_gen).trigger_click();'
         - globals.set:
             id: dial_pulse_count
             value: !lambda |-
