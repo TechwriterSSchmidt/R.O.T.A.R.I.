@@ -5,9 +5,9 @@ esphome:
   includes:
     - src/rotary_helpers.h
   platformio_options:
-    # LilyGO T7-S3 16MB Flash / 8MB PSRAM Specifics
-    board_build.arduino.memory_type: qio_opi 
-    board_build.flash_mode: qio
+    board_build.flash_mode: dio
+    # Generic ESP32-S3 16MB Flash / 8MB PSRAM Specifics
+    board_build.arduino.memory_type: qio_opi
     build_flags:
       - "-DBOARD_HAS_PSRAM"
       - "-DARDUINO_USB_CDC_ON_BOOT=1"
@@ -47,7 +47,9 @@ substitutions:
 
 # External Components
 external_components:
-  - source: components
+  - source:
+      type: local
+      path: components
     components: [ drv2605, vintage_tone_generator ]
 
 esp32:
@@ -57,9 +59,12 @@ esp32:
   framework:
     type: arduino
 
-# Enable logging
+# Enable logging (default 115200)
 logger:
-  hardware_uart: USB_SERIAL_JTAG
+  hardware_uart: USB_CDC
+  level: DEBUG
+
+
 
 # Enable debug component
 debug:
@@ -148,7 +153,7 @@ media_player:
       - light.addressable_set:
           id: button_leds
           range_from: 0
-          range_to: 4
+          range_to: 1
           red: 0%
           green: 0%
           blue: 100% # Blue for Music/Ringing
@@ -259,7 +264,7 @@ light:
             
             float brightness = progress * progress; // Gamma correctionish
             it.all() = Color::BLACK;
-            if (it.size() > 1) it[1] = Color(128, 0, 128) * brightness;
+            if (it.size() > 0) it[0] = Color(128, 0, 128) * brightness;
 
       # Thinking Pulse (Blue on LED 1 - Index 0)
       - addressable_lambda:
@@ -307,7 +312,7 @@ light:
             
             float brightness = progress * progress;
             it.all() = Color::BLACK;
-            if (it.size() > 3) it[3] = Color(255, 200, 0) * brightness;
+            if (it.size() > 0) it[0] = Color(255, 200, 0) * brightness;
 
       # Battery Level Indicator (Static with fade-in on start)
       - addressable_lambda:
@@ -354,6 +359,12 @@ drv2605:
   library: 6            # 6 = TS2200_F (LRA library)
 
 # Sensors
+text_sensor:
+  - platform: template
+    name: "Dialed Number String"
+    id: dialed_number_string
+    icon: "mdi:phone-dial"
+
 sensor:
   - platform: adc
     pin: ${pin_battery_voltage}
@@ -439,6 +450,31 @@ globals:
     initial_value: '750' # 15 vibrations * 50ms
 
 number:
+  - platform: template
+    name: "Feedback LED Brightness"
+    id: feedback_led_brightness
+    min_value: 0
+    max_value: 100
+    step: 5
+    initial_value: 50
+    optimistic: true
+    unit_of_measurement: "%"
+
+  - platform: template
+    name: "Ringer Volume"
+    id: ringer_volume
+    min_value: 0
+    max_value: 100
+    step: 5
+    initial_value: 80
+    optimistic: true
+    unit_of_measurement: "%"
+    on_value:
+      then:
+        - media_player.volume_set:
+            id: media_player_base
+            volume: !lambda 'return x / 100.0;'
+
   - platform: template
     name: "Low Battery Threshold"
     id: low_battery_threshold
@@ -615,6 +651,9 @@ script:
             - globals.set:
                 id: dialed_number_buffer
                 value: '""'
+            - text_sensor.template.publish:
+                id: dialed_number_string
+                state: ""
 
   - id: flush_dialed_number_timer
     mode: restart
@@ -634,7 +673,15 @@ script:
           condition:
             lambda: 'return true;'
           then:
-            # Visual Alarm (All LEDs flash red)
+            # Ring Logic (Calls ring_phone if not already running)
+            - if:
+                condition:
+                   not:
+                     script.is_running: ring_phone
+                then:
+                   - script.execute: ring_phone
+
+            # Visual Alarm (All 4 LEDs Flash Red)
             - light.addressable_set:
                 id: button_leds
                 range_from: 0
@@ -677,9 +724,16 @@ script:
                   # Removed Single-Digit Mode switch.
                   # Always buffering digits now (Phonebook logic).
                   - lambda: |-
-                      int digit = (id(dial_pulse_count) == 10) ? 0 : id(dial_pulse_count);
+                      int count = id(dial_pulse_count);
+                      int digit = count;
+                      if (count == 10) {
+                        digit = 0;
+                      }
+                      ESP_LOGD("dial_debug", "Pulse Count: %d -> Digit: %d", count, digit);
+                      
                       id(dialed_number_buffer) += std::to_string(digit);
                       ESP_LOGD("dial", "Digit added. Buffer: %s", id(dialed_number_buffer).c_str());
+                      id(dialed_number_string).publish_state(id(dialed_number_buffer));
                   - script.stop: flush_dialed_number_timer
                   - script.execute: flush_dialed_number_timer
       
@@ -742,8 +796,8 @@ script:
             # Fade in
             - light.addressable_set:
                 id: button_leds
-                range_from: 3
-                range_to: 4
+                range_from: 0
+                range_to: 1
                 red: 100%
                 green: 0%
                 blue: 0%
@@ -751,8 +805,8 @@ script:
             # Fade out
             - light.addressable_set:
                 id: button_leds
-                range_from: 3
-                range_to: 4
+                range_from: 0
+                range_to: 1
                 red: 10%
                 green: 0%
                 blue: 0%
@@ -886,6 +940,21 @@ binary_sensor:
            event: esphome.rotary_phone_button
            data:
              button: "2"
+      - light.addressable_set:
+          id: button_leds
+          range_from: 1
+          range_to: 2
+          red: !lambda 'return id(feedback_led_brightness).state / 100.0;'
+          green: !lambda 'return (id(feedback_led_brightness).state / 100.0) * 0.8;'
+          blue: !lambda 'return (id(feedback_led_brightness).state / 100.0) * 0.2;'
+      - delay: 3s
+      - light.addressable_set:
+          id: button_leds
+          range_from: 1
+          range_to: 2
+          red: 0%
+          green: 0%
+          blue: 0%
 
   # Button 3: Custom Action (HA)
   - platform: gpio
@@ -902,6 +971,21 @@ binary_sensor:
            event: esphome.rotary_phone_button
            data:
              button: "3"
+      - light.addressable_set:
+          id: button_leds
+          range_from: 2
+          range_to: 3
+          red: !lambda 'return id(feedback_led_brightness).state / 100.0;'
+          green: !lambda 'return (id(feedback_led_brightness).state / 100.0) * 0.8;'
+          blue: !lambda 'return (id(feedback_led_brightness).state / 100.0) * 0.2;'
+      - delay: 3s
+      - light.addressable_set:
+          id: button_leds
+          range_from: 2
+          range_to: 3
+          red: 0%
+          green: 0%
+          blue: 0%
 
   # Button 4: Custom Action (Home Assistant)
   - platform: gpio
@@ -919,6 +1003,21 @@ binary_sensor:
            event: esphome.rotary_phone_button
            data:
              button: "4"
+      - light.addressable_set:
+          id: button_leds
+          range_from: 3
+          range_to: 4
+          red: !lambda 'return id(feedback_led_brightness).state / 100.0;'
+          green: !lambda 'return (id(feedback_led_brightness).state / 100.0) * 0.8;'
+          blue: !lambda 'return (id(feedback_led_brightness).state / 100.0) * 0.2;'
+      - delay: 3s
+      - light.addressable_set:
+          id: button_leds
+          range_from: 3
+          range_to: 4
+          red: 0%
+          green: 0%
+          blue: 0%
 
   # Rotary Dial Active (Dial is rotating)
   - platform: gpio
@@ -938,6 +1037,7 @@ binary_sensor:
             id: dial_pulse_count
             value: '0'
         - voice_assistant.stop:
+        - script.stop: flush_dialed_number_timer
         - logger.log: "Dialing started..."
     on_release:
       then:

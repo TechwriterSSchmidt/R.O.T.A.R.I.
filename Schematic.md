@@ -13,7 +13,7 @@ Dieses Dokument beschreibt die Verdrahtung der Komponenten für den Rotary Phone
 
 ```mermaid
 graph TD
-    subgraph ESP32_S3 [LilyGO T7-S3 Controller]
+    subgraph ESP32_S3 [Controller (Target: WEMOS S3 Pro / Dev: Generic ESP32-S3 16MB/8MB)]
         GND[GND]
         V33[3.3V Out]
         V5[5V / VBUS]

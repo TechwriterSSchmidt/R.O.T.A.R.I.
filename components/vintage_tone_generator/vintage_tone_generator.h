@@ -33,7 +33,12 @@ class VintageToneGenerator : public esphome::Component {
   VintageToneGenerator(esphome::i2s_audio::I2SAudioComponent *bus) : bus_(bus) {}
 
   void setup() override {
-      // Nothing special
+      if (this->bus_ == nullptr) {
+          ESP_LOGE("vintage_tone", "I2S Bus pointer is NULL!");
+          this->mark_failed();
+      } else {
+          ESP_LOGI("vintage_tone", "Vintage Tone Generator Setup Complete. Bus: %p", this->bus_);
+      }
   }
 
   void start_tone(float freq, bool pulse = false) {
@@ -105,10 +110,11 @@ class VintageToneGenerator : public esphome::Component {
           }
           
           if (has_content) {
-             size_t bytes_written = 0;
-             // Using direct ESP-IDF driver call as we don't have access to component write
-             // Assuming get_port() is available
-             i2s_write((i2s_port_t)this->bus_->get_port(), buffer, samples_to_gen * sizeof(int16_t), &bytes_written, 0);
+             if (this->bus_ != nullptr && false) { // DISABLED I2S WRITE
+                size_t bytes_written = 0;
+                // Using direct ESP-IDF driver call as we don't have access to component write
+                // i2s_write((i2s_port_t)0, buffer, samples_to_gen * sizeof(int16_t), &bytes_written, 0);
+             }
           }
       }
   }

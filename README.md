@@ -42,7 +42,8 @@ If you like this project, consider a tip. Your tip motivates me to continue deve
 
 ## Hardware Support
 
-*   **Controller:** LilyGO T7-S3 (ESP32-S3)
+*   **Target Controller:** [WEMOS S3 Pro](https://www.wemos.cc/en/latest/s3/s3_pro.html) (ESP32-S3)
+*   **Dev/Test Controller:** Generic ESP32-S3 (Unknown Model - 16MB Flash / 8MB PSRAM) - *Currently used for development until the S3 Pro arrives.*
 *   **Audio Base:** I2S Bus B -> DY-SV17F / Amplifier for loud Ringing.
 *   **Audio Handset:** I2S Bus A -> MAX98357A (Speaker) + INMP441 (Mic).
 *   **Feedback:** DRV2605 LRA Haptic Driver (for silent ringing).
