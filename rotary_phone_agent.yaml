@@ -262,7 +262,7 @@ light:
       - pulse:
           name: "Thinking Pulse"
           transition_length: 500ms
-          update_interval: 250ms
+          update_interval: 150ms
           min_brightness: 5%
           max_brightness: 100%
       - addressable_lambda:
