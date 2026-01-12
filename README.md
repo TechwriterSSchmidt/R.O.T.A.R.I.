@@ -34,7 +34,7 @@ If you like this project, consider a tip. Your tip motivates me to continue deve
 | **Input** | **Rotary Dial** | Sends events to Home Assistant. Robust software debouncing (15ms) for reliable digit detection. |
 | | **Speed Dial Buttons** | **Button 1:** System (Battery/DND). **Buttons 2-4:** Custom HA events. |
 | **Smart Helpers** | **Sensors** | Supports BME280 (Temp/Hum/Press). |
-| | **Room Tracking** | Hardware ready for Bluetooth proxy (Disabled by default to optimize audio). |
+| | **Room Tracking** | Best practice: Place a physical Bluetooth Beacon (AirTag, Tile) inside the case for stable room tracking via [Bermuda Integration](https://community.home-assistant.io/t/bermuda-bluetooth-ble-room-presence-and-tracking-custom-integration/625780). |
 | | **Find My Phone** | Visual alarm mode if device is misplaced. |
 | | **Battery Power** | Voltage monitoring with configurable low-battery thresholds. |
 | | **Watchdog** | Auto-reboot on connection loss. `Safe Mode` enabled for crash recovery. |

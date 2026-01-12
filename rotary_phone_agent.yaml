@@ -351,16 +351,6 @@ light:
             // LED 4 (Green) - > 4.0V
             if (v >= 4.0) it[3] = Color(0, 255, 0);
 
-# Bluetooth for Tracking (Disabled for performance/future option)
-# esp32_ble_tracker:
-#   scan_parameters:
-#     interval: 1100ms
-#     window: 1100ms
-#     active: true
-
-# bluetooth_proxy:
-#   active: true
-
 # I2C Bus Sensoren
 i2c:
   sda: ${pin_i2c_sda}
