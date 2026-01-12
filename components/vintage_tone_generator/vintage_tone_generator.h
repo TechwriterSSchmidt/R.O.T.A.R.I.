@@ -26,6 +26,9 @@ class VintageToneGenerator : public esphome::Component {
   bool wobble_enabled = true;
   float wobble_phase = 0.0f;
   
+  // Ringback
+  bool ringback_active = false;
+  
   // Hard Click / Impulse
   int click_samples_remaining = 0;
   float click_amplitude = 0.8f;
@@ -54,13 +57,23 @@ class VintageToneGenerator : public esphome::Component {
 
   void start_white_noise(float noise_amp) {
       this->active = true;
+      this->ringback_active = false;
       this->is_pulsing = false;
       this->amplitude = 0.0f; // Silence tone
       this->noise_amplitude = noise_amp; // Set requested noise level
   }
+  
+  void start_ringback_tone() {
+      this->active = false;
+      this->ringback_active = true;
+      this->pattern_start = millis();
+      this->phase = 0.0f;
+      this->noise_amplitude = 0.005f;
+  }
 
   void stop_tone() {
     this->active = false;
+    this->ringback_active = false;
   }
   
   void set_pulse_timing(uint32_t on, uint32_t off) {
@@ -73,15 +86,22 @@ class VintageToneGenerator : public esphome::Component {
   }
 
   void loop() override {
-      if (this->active || click_samples_remaining > 0) {
+      if (this->active || this->ringback_active || click_samples_remaining > 0) {
           // Generate a small chunk (10ms = 160 samples)
           int16_t buffer[160];
           size_t samples_to_gen = 160;
           
           bool output_enabled = true;
-          if (is_pulsing) {
+          if (active && is_pulsing) {
              uint32_t elapsed = (millis() - pattern_start) % (pattern_on_ms + pattern_off_ms);
              if (elapsed > pattern_on_ms) output_enabled = false;
+          }
+          
+          // Ringback Cadence (1s ON, 3s OFF)
+          bool ringback_signal = false;
+          if (ringback_active) {
+              uint32_t rb_elapsed = (millis() - pattern_start) % 4000;
+              if (rb_elapsed < 1000) ringback_signal = true;
           }
           
           bool has_content = false;
@@ -92,7 +112,7 @@ class VintageToneGenerator : public esphome::Component {
               if (active && output_enabled) {
                   has_content = true;
                   float current_freq = frequency;
-                  if (wobble_enabled) {
+                  if (wobble_enabled && amplitude > 0.1f) {
                       current_freq += sin(wobble_phase * 2.0f * M_PI) * 2.0f;
                       wobble_phase += 0.5f/16000.0f;
                       if (wobble_phase >= 1.0f) wobble_phase -= 1.0f;
@@ -104,6 +124,17 @@ class VintageToneGenerator : public esphome::Component {
                   
                   float noise = ((float)(rand() % 100) / 50.0f) - 1.0f;
                   val += noise * noise_amplitude;
+              }
+              
+              if (ringback_active) {
+                   has_content = true;
+                   if (ringback_signal) {
+                       val += sin(phase * 2.0f * M_PI) * 0.5f;
+                       phase += 425.0f / 16000.0f; 
+                       if (phase >= 1.0f) phase -= 1.0f;
+                   }
+                   float noise = ((float)(rand() % 100) / 50.0f) - 1.0f;
+                   val += noise * noise_amplitude;
               }
               
               if (click_samples_remaining > 0) {

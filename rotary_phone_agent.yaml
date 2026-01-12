@@ -420,8 +420,11 @@ sensor:
     accuracy_decimals: 0
     force_update: true
 
-# Globals
+  # Globals
 globals:
+  - id: calculated_ring_delay
+    type: int
+    initial_value: '0'
   - id: dial_pulse_count
     type: int
     initial_value: '0'
@@ -533,6 +536,17 @@ number:
     initial_value: 2000
     optimistic: true
     restore_value: true
+
+  - platform: template
+    name: "Max Ringback Loops"
+    id: setting_max_rings
+    icon: "mdi:phone-ring"
+    min_value: 0
+    max_value: 6 # 6x Klingeln = ca 24 Sekunden warten
+    step: 1
+    optimistic: true
+    restore_value: true
+    initial_value: 2 # Standard: Bis zu 2x Klingeln
 
 switch:
   - platform: template
@@ -651,9 +665,38 @@ script:
 
             # 4. Clear Buffer & Silence Tone (Ready for TTS)
             - lambda: 'id(my_tone_gen).stop_tone();'
-            # Simulate "Pickup" click (Connection established)
-            - delay: 200ms
-            - lambda: 'id(my_tone_gen).trigger_click();'
+            
+            # Logic: Call vs Command
+            - if:
+                condition:
+                  or:
+                    - binary_sensor.is_off: phone_hook  # Off-Hook (Abgenommen)
+                    - switch.is_on: speaker_mode        # Freisprechen
+                then:
+                    # ===== CALL MODE (Ringback) =====
+                    - lambda: |-
+                        int max_r = (int)id(setting_max_rings).state;
+                        if (max_r > 0) {
+                          id(my_tone_gen).start_ringback_tone();
+                          int random_loops = rand() % (max_r + 1);
+                          id(calculated_ring_delay) = random_loops * 4000;
+                          if (random_loops == 0) id(calculated_ring_delay) = 1500;
+                        } else {
+                          id(calculated_ring_delay) = 0;
+                        }
+                    
+                    # Wait for ringback
+                    - delay: !lambda "return id(calculated_ring_delay);"
+                    
+                    # Stop Ringback & Click
+                    - lambda: 'id(my_tone_gen).stop_tone();'
+                    - delay: 100ms
+                    - lambda: 'id(my_tone_gen).trigger_click();'
+                    - delay: 500ms
+                else:
+                    # ===== COMMAND MODE (Silent/Instant) =====
+                    # Just ensure tone is off
+                    - lambda: 'id(my_tone_gen).stop_tone();'
             
             - globals.set:
                 id: dialed_number_buffer
