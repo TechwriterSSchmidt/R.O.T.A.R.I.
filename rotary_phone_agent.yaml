@@ -236,7 +236,7 @@ voice_assistant:
   on_error:
     - light.turn_on: 
         id: led_status
-        effect: "Error Pulse"
+        effect: "Thinking Pulse"
         red: 100%
         green: 0%
         blue: 0%
@@ -262,12 +262,6 @@ light:
           update_interval: 1000ms
           min_brightness: 10%
           max_brightness: 100%
-      - pulse:
-          name: "Error Pulse"
-          transition_length: 500ms
-          update_interval: 1000ms
-          min_brightness: 10%
-          max_brightness: 100%
       - pulse: 
           name: "Find Phone Pulse"
           transition_length: 500ms
@@ -280,17 +274,6 @@ light:
           update_interval: 1000ms
           min_brightness: 10%
           max_brightness: 100%
-      - addressable_lambda:
-          name: "Battery Level"
-          update_interval: 1s
-          lambda: |-
-            if (id(battery_level).state > 50) {
-              it[0] = Color(0, 255, 0);
-            } else if (id(battery_level).state > 20) {
-              it[0] = Color(255, 165, 0);
-            } else {
-              it[0] = Color(255, 0, 0);
-            }
 
   # LED 2: Button 2 Feedback (Mute/Action)
   - platform: neopixelbus
@@ -567,6 +550,8 @@ switch:
     id: dnd_mode
     icon: "mdi:minus-circle"
     optimistic: true
+    restore_state: false # Standardmäßig auf OFF
+    initial_state: false
     on_turn_on:
       - light.turn_on:
           id: led_status
