@@ -351,18 +351,21 @@ sensor:
             then:
               - if:
                   condition:
-                    lambda: 'return id(led_status).get_effect_name() != "Error Pulse";'
+                    lambda: 'return id(led_status).get_effect_name() != "Thinking Pulse";'
                   then:
                     - light.turn_on:
                         id: led_status
-                        effect: "Error Pulse"
+                        effect: "Thinking Pulse"
+                        red: 100%
+                        green: 0%
+                        blue: 0% # Red Pulse for Alarm
                     - homeassistant.event:
                         event: esphome.rotary_phone_low_battery
                     - logger.log: "Battery Low! Starting alarm."
             else:
               - if:
                   condition:
-                    lambda: 'return id(led_status).get_effect_name() == "Error Pulse";'
+                    lambda: 'return id(led_status).get_effect_name() == "Thinking Pulse";'
                   then:
                     - light.turn_on:
                         id: led_status
