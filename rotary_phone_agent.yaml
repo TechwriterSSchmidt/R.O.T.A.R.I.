@@ -13,8 +13,13 @@ substitutions:
   pin_i2s_base_dout: GPIO19
 
   # Peripherals
-  pin_led_strip: GPIO2
   pin_battery_voltage: GPIO4
+  
+  # LED Pins (4 separate pins)
+  pin_led_1: GPIO2  # Status LED (GPIO38 is input-only on S3)
+  pin_led_2: GPIO3  # Button 2 (moved to output-capable pin)
+  pin_led_3: GPIO20 # Button 3 (moved to output-capable pin)
+  pin_led_4: GPIO17 # Button 4 (moved to output-capable pin)
   
   # I2C Bus
   pin_i2c_sda: GPIO8
@@ -68,11 +73,7 @@ esphome:
   on_boot:
     priority: -100
     then:
-      - light.turn_on:
-          id: button_leds
-          effect: "Boot Chase"
-      - delay: 5s
-      - light.turn_off: button_leds
+      - script.execute: boot_animation
 
 # Enable Home Assistant API
 api:
@@ -84,15 +85,15 @@ api:
     - service: stop_find_my_phone
       then:
         - script.stop: find_phone
-        - light.turn_off: button_leds
+        - light.turn_off: led_status
     - service: start_broadcast_notification
       then:
         - light.turn_on:
-            id: button_leds
+            id: led_status
             effect: "Broadcast Pulse"
     - service: stop_broadcast_notification
       then:
-        - light.turn_off: button_leds
+        - light.turn_off: led_status
     - service: start_listening
       then:
         - voice_assistant.start
@@ -169,16 +170,15 @@ media_player:
     dac_type: external
     mode: mono
     on_play:
-      - light.turn_on: button_leds
-      - light.addressable_set:
-          id: button_leds
-          range_from: 0
-          range_to: 1
+      - light.turn_on:
+          id: led_status
+          effect: "none"
+          brightness: 100%
           red: 0%
           green: 0%
           blue: 100% # Blue for Music/Ringing
     on_idle:
-      - light.turn_off: button_leds
+      - light.turn_off: led_status
 
 voice_assistant:
   microphone: mic_i2s
@@ -192,175 +192,133 @@ voice_assistant:
           - voice_assistant.stop:
           - logger.log: "Voice Assistant blocked because of DND"
           - light.turn_on:
-              id: button_leds
+              id: led_status
               effect: "DND Pulse"
         else:
           - light.turn_on:
-              id: button_leds
+              id: led_status
               effect: "none"
-          - light.addressable_set:
-              id: button_leds
-              range_from: 0
-              range_to: 1
+              brightness: 100%
               red: 0%
               green: 0%
               blue: 100% # Listening = Blue Static
 
   on_stt_end:
     - light.turn_on: 
-        id: button_leds
+        id: led_status
         effect: "Thinking Pulse"
 
   on_tts_start:
     # Speaking - optionally dim or off. "Off to allow conversation"
     - light.turn_on:
-        id: button_leds
+        id: led_status
         effect: "none"
-    - light.addressable_set:
-        id: button_leds
-        range_from: 0
-        range_to: 1
+        brightness: 100%
         red: 0%
         green: 0%
-        blue: 100%
+        blue: 100% # Speaking = Blue
+
 
   on_end:
     # Busy Tone after call (425Hz, 480ms ON, 480ms OFF)
     - lambda: |-
         id(my_tone_gen).set_pulse_timing(480, 480);
         id(my_tone_gen).start_tone(425.0, true);
-    - light.turn_off: button_leds
+    - light.turn_off: led_status
 
   on_error:
     - light.turn_on: 
-        id: button_leds
+        id: led_status
         effect: "Error Pulse"
     - delay: 2s
-    - light.turn_off: button_leds
+    - light.turn_off: led_status
 
-# Button LEDs
+# LED Configuration (4 Separate Neopixels)
 light:
-  - platform: esp32_rmt_led_strip
-    rgb_order: GRB
-    pin: ${pin_led_strip}
-    num_leds: 4
-    chipset: ws2812
-    name: "Button LEDs"
-    id: button_leds
+  # LED 1: Status / Voice Assistant (The "Smart" LED)
+  - platform: neopixelbus
+    type: GRB
+    variant: WS2812
+    method: ESP32_RMT_0
+    pin: ${pin_led_1}
+    num_leds: 1
+    name: "Status LED"
+    id: led_status
     restore_mode: ALWAYS_OFF
-    
-    # Simulates incandescent fading (Gamma/Tungsten)
-    # default_transition_length: 500ms 
-
     effects:
-      - addressable_scan:
-      
-      # Boot Chase (Lauflicht 1-4)
-      - addressable_lambda:
-          name: "Boot Chase"
-          update_interval: 50ms
-          lambda: |-
-            int speed_ms = 250;
-            int pos = (millis() / speed_ms) % 4;
-            
-            it.all() = Color::BLACK;
-            if (pos < it.size()) {
-               // Warm White active LED
-               it[pos] = Color(255, 200, 150);
-            }
-
-      # DND Pulse (Warm Tungsten)
-      - addressable_lambda:
-          name: "DND Pulse"
-          update_interval: 50ms
-          lambda: |-
-            // 2s period
-            float phase = (millis() % 2000) / 2000.0f * 6.28318f; // 2*PI
-            float val = (sin(phase) + 1.0f) / 2.0f;
-            // Linearer für Sichtbarkeit auf einzelner LED
-            float b = 0.2f + (0.8f * val); 
-
-            it.all() = Color::BLACK;
-            if (it.size() > 0) {
-               // Orange-Red DND color (255, 80, 0)
-               it[0] = Color( (int)(255 * b), (int)(80 * b), 0 );
-            }
-
-      # Thinking Pulse (Soft Blue) - 0.75Hz
-      - addressable_lambda:
+      - pulse:
           name: "Thinking Pulse"
-          update_interval: 20ms
-          lambda: |-
-            // 2s period (0.5Hz)
-            float phase = (millis() % 2000) / 2000.0f * 6.28318f;
-            float val = (sin(phase) + 1.0f) / 2.0f;
-            float b = val * val; 
-            
-            it.all() = Color::BLACK;
-            if (it.size() > 0) {
-               it[0] = Color( (int)(30 * b), (int)(30 * b), (int)(255 * b) );
-            }
-
-      # Error Pulse (Soft Red) - 0.75Hz max
-      - addressable_lambda:
+          transition_length: 500ms
+          update_interval: 1000ms
+          min_brightness: 10%
+          max_brightness: 100%
+      - pulse:
+          name: "DND Pulse"
+          transition_length: 1000ms # Slow breathing
+          update_interval: 2000ms
+      - strobe:
           name: "Error Pulse"
-          update_interval: 20ms
-          lambda: |-
-            // 1.5s period (0.66Hz)
-            float phase = (millis() % 1500) / 1500.0f * 6.28318f;
-            float val = (sin(phase) + 1.0f) / 2.0f;
-            float b = val * val;
-            
-            it.all() = Color::BLACK;
-            if (it.size() > 0) {
-              it[0] = Color( (int)(255 * b), 0, 0 );
-            }
-
-      # Find Phone Pulse (Red) - 0.75Hz max
-      - addressable_lambda:
+          colors:
+            - state: true
+              brightness: 100%
+              duration: 200ms
+            - state: false
+              duration: 200ms
+      - pulse: 
           name: "Find Phone Pulse"
-          update_interval: 20ms
-          lambda: |-
-             // 1.4s period (~0.7Hz)
-             float phase = (millis() % 1400) / 1400.0f * 6.28318f;
-             float val = (sin(phase) + 1.0f) / 2.0f;
-             float b = val * val;
-
-             it.all() = Color( (int)(255 * b), 0, 0 );
-
-      # Broadcast Pulse (Yellow)
-      - addressable_lambda:
+          transition_length: 100ms
+          update_interval: 750ms
+      - pulse:
           name: "Broadcast Pulse"
-          update_interval: 20ms
-          lambda: |-
-            float phase = (millis() % 2000) / 2000.0f * 6.28318f;
-            float val = (sin(phase) + 1.0f) / 2.0f;
-            float b = val * val;
-            
-            it.all() = Color::BLACK;
-            if (it.size() > 0) {
-               it[0] = Color( (int)(255 * b), (int)(180 * b), 0 );
-            }
-
-      # Battery Level Indicator (Static with fade-in on start)
+          transition_length: 300ms
+          update_interval: 300ms
       - addressable_lambda:
           name: "Battery Level"
-          update_interval: 500ms
+          update_interval: 1s
           lambda: |-
-            float v = id(battery_voltage).state;
-            it.all() = Color::BLACK;
-            
-            // LED 1 (Red) - < 3.6V (Critical/Low)
-            if (v >= 3.0) it[0] = Color(255, 0, 0); 
-            
-            // LED 2 (Orange) - > 3.6V
-            if (v >= 3.6) it[1] = Color(255, 165, 0);
-            
-            // LED 3 (Yellow) - > 3.8V
-            if (v >= 3.8) it[2] = Color(255, 255, 0);
-            
-            // LED 4 (Green) - > 4.0V
-            if (v >= 4.0) it[3] = Color(0, 255, 0);
+            if (id(battery_level).state > 50) {
+              it[0] = Color(0, 255, 0);
+            } else if (id(battery_level).state > 20) {
+              it[0] = Color(255, 165, 0);
+            } else {
+              it[0] = Color(255, 0, 0);
+            }
+
+  # LED 2: Button 2 Feedback (Mute/Action)
+  - platform: neopixelbus
+    type: GRB
+    variant: WS2812
+    method: ESP32_RMT_1
+    pin: ${pin_led_2}
+    num_leds: 1
+    name: "Button 2 LED"
+    id: led_btn_2
+    restore_mode: ALWAYS_OFF
+    effects:
+      - pulse:
+          name: "Mute Pulse" # Optional if used later
+          
+  # LED 3: Button 3 Feedback
+  - platform: neopixelbus
+    type: GRB
+    variant: WS2812
+    method: ESP32_RMT_2
+    pin: ${pin_led_3}
+    num_leds: 1
+    name: "Button 3 LED"
+    id: led_btn_3
+    restore_mode: ALWAYS_OFF
+
+  # LED 4: Button 4 Feedback
+  - platform: neopixelbus
+    type: GRB
+    variant: WS2812
+    method: ESP32_RMT_3
+    pin: ${pin_led_4}
+    num_leds: 1
+    name: "Button 4 LED"
+    id: led_btn_4
+    restore_mode: ALWAYS_OFF
 
 # I2C Bus Sensoren
 i2c:
@@ -400,10 +358,10 @@ sensor:
             then:
               - if:
                   condition:
-                    lambda: 'return id(button_leds).get_effect_name() != "Error Pulse";'
+                    lambda: 'return id(led_status).get_effect_name() != "Error Pulse";'
                   then:
-                    - light.turn_on: 
-                        id: button_leds
+                    - light.turn_on:
+                        id: led_status
                         effect: "Error Pulse"
                     - homeassistant.event:
                         event: esphome.rotary_phone_low_battery
@@ -411,13 +369,13 @@ sensor:
             else:
               - if:
                   condition:
-                    lambda: 'return id(button_leds).get_effect_name() == "Error Pulse";'
+                    lambda: 'return id(led_status).get_effect_name() == "Error Pulse";'
                   then:
-                    - light.turn_on: 
-                        id: button_leds
+                    - light.turn_on:
+                        id: led_status
                         effect: "none"
                     # Restore battery view momentarily or just off
-                    - light.turn_off: button_leds
+                    - light.turn_off: led_status
                     - logger.log: "Battery OK. Stopping alarm."
 
   - platform: template
@@ -603,10 +561,10 @@ switch:
     optimistic: true
     on_turn_on:
       - light.turn_on:
-          id: button_leds
+          id: led_status
           effect: "DND Pulse"
     on_turn_off:
-      - light.turn_off: button_leds
+      - light.turn_off: led_status
 
   - platform: template
     name: "Hands-free Mode"
@@ -615,17 +573,14 @@ switch:
     optimistic: true
     on_turn_on:
       - light.turn_on:
-          id: button_leds
+          id: led_status
           effect: "none"
-      - light.addressable_set:
-           id: button_leds
-           range_from: 0
-           range_to: 1
-           red: 0%
-           green: 100%
-           blue: 0%
+          brightness: 100%
+          red: 0%
+          green: 100%
+          blue: 0%
     on_turn_off:
-      - light.turn_off: button_leds
+      - light.turn_off: led_status
 
   - platform: template
     name: "Find R.O.T.A.R.I."
@@ -636,7 +591,7 @@ switch:
       - script.execute: find_phone
     turn_off_action:
       - script.stop: find_phone
-      - light.turn_off: button_leds
+      - light.turn_off: led_status
 
   - platform: template
     name: "Haptic Ringing"
@@ -665,6 +620,42 @@ button:
 
 # Scripts
 script:
+  # Boot Animation (Chase Effect over 4 simple LEDs)
+  - id: boot_animation
+    then:
+      - light.turn_on:
+          id: led_status
+          brightness: 100%
+          red: 100% 
+          green: 65% 
+          blue: 0%
+      - delay: 150ms
+      - light.turn_off: led_status
+      - light.turn_on:
+          id: led_btn_2
+          brightness: 100%
+          red: 100% 
+          green: 65% 
+          blue: 0%
+      - delay: 150ms
+      - light.turn_off: led_btn_2
+      - light.turn_on:
+          id: led_btn_3
+          brightness: 100%
+          red: 100% 
+          green: 65% 
+          blue: 0%
+      - delay: 150ms
+      - light.turn_off: led_btn_3
+      - light.turn_on:
+          id: led_btn_4
+          brightness: 100%
+          red: 100% 
+          green: 65% 
+          blue: 0%
+      - delay: 150ms
+      - light.turn_off: led_btn_4
+
   # Process and send dialed string
   - id: flush_dialed_number
     then:
@@ -755,7 +746,7 @@ script:
     mode: restart
     then:
       - light.turn_on: 
-          id: button_leds
+          id: led_status
           effect: "Find Phone Pulse"
       - while:
           condition:
@@ -820,19 +811,19 @@ script:
     then:
       - if:
           condition:
-            not:
-              switch.is_on: find_rotari_switch
+            and:
+              - not:
+                  switch.is_on: find_rotari_switch
+              - not:
+                  script.is_running: find_phone
           then:
             - light.turn_on:
-                 id: button_leds
-                 effect: "none"
-            - light.addressable_set:
-                 id: button_leds
-                 range_from: 0
-                 range_to: 1
-                 red: 100%
-                 green: 40%
-                 blue: 0%  # Amber/Gold for incoming call
+                id: led_status
+                effect: "none"
+                brightness: 100%
+                red: 100%
+                green: 40%
+                blue: 0%  # Amber/Gold for incoming call
       - repeat:
           count: !lambda |-
             return id(ring_count).state;
@@ -879,7 +870,7 @@ script:
                 else:
                   - script.stop: ring_phone
       
-      - light.turn_off: button_leds
+      - light.turn_off: led_status
 
 
 # Binary Sensors
@@ -920,7 +911,7 @@ binary_sensor:
       - script.stop: flush_dialed_number
 
       # 6. Visual Cleanup
-      - light.turn_off: button_leds
+      - light.turn_off: led_status
       # - script.stop: led_pulse_purple_mute
       
       # 7. Reset Internal State
@@ -989,11 +980,11 @@ binary_sensor:
       - min_length: 2000ms
         max_length: 10000ms
         then:
-          - light.turn_on:
-               id: button_leds
-               effect: "Battery Level"
-          - delay: 3s
-          - light.turn_off: button_leds
+        - light.turn_on:
+              id: led_status
+              effect: "Battery Level"
+        - delay: 3s
+        - light.turn_off: led_status
 
   # Button 2: Custom Action (HA)
   - platform: gpio
@@ -1010,24 +1001,16 @@ binary_sensor:
            event: esphome.rotary_phone_button
            data:
              button: "2"
-      - light.addressable_set:
-          id: button_leds
-          range_from: 1
-          range_to: 2
-          red: !lambda |-
+      - light.turn_on:
+          id: led_btn_2
+          effect: "none"
+          brightness: !lambda |-
             return id(feedback_led_brightness).state / 100.0;
-          green: !lambda |-
-            return (id(feedback_led_brightness).state / 100.0) * 0.8;
-          blue: !lambda |-
-            return (id(feedback_led_brightness).state / 100.0) * 0.2;
+          red: 100%
+          green: 80%
+          blue: 20%
       - delay: 3s
-      - light.addressable_set:
-          id: button_leds
-          range_from: 1
-          range_to: 2
-          red: 0%
-          green: 0%
-          blue: 0%
+      - light.turn_off: led_btn_2
 
   # Button 3: Custom Action (HA)
   - platform: gpio
@@ -1044,24 +1027,16 @@ binary_sensor:
            event: esphome.rotary_phone_button
            data:
              button: "3"
-      - light.addressable_set:
-          id: button_leds
-          range_from: 2
-          range_to: 3
-          red: !lambda |-
+      - light.turn_on:
+          id: led_btn_3
+          effect: "none"
+          brightness: !lambda |-
             return id(feedback_led_brightness).state / 100.0;
-          green: !lambda |-
-            return (id(feedback_led_brightness).state / 100.0) * 0.8;
-          blue: !lambda |-
-            return (id(feedback_led_brightness).state / 100.0) * 0.2;
+          red: 100%
+          green: 80%
+          blue: 20%
       - delay: 3s
-      - light.addressable_set:
-          id: button_leds
-          range_from: 2
-          range_to: 3
-          red: 0%
-          green: 0%
-          blue: 0%
+      - light.turn_off: led_btn_3
 
   # Button 4: Custom Action (Home Assistant)
   - platform: gpio
@@ -1079,24 +1054,16 @@ binary_sensor:
            event: esphome.rotary_phone_button
            data:
              button: "4"
-      - light.addressable_set:
-          id: button_leds
-          range_from: 3
-          range_to: 4
-          red: !lambda |-
+      - light.turn_on:
+          id: led_btn_4
+          effect: "none"
+          brightness: !lambda |-
             return id(feedback_led_brightness).state / 100.0;
-          green: !lambda |-
-            return (id(feedback_led_brightness).state / 100.0) * 0.8;
-          blue: !lambda |-
-            return (id(feedback_led_brightness).state / 100.0) * 0.2;
+          red: 100%
+          green: 80%
+          blue: 20%
       - delay: 3s
-      - light.addressable_set:
-          id: button_leds
-          range_from: 3
-          range_to: 4
-          red: 0%
-          green: 0%
-          blue: 0%
+      - light.turn_off: led_btn_4
 
   # Rotary Dial Active (Dial is rotating)
   - platform: gpio

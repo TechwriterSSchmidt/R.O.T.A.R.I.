@@ -127,11 +127,13 @@ The 4 buttons on the device provide local control and visual feedback via the 4-
 
 | State | LED Color | Animation |
 | :--- | :--- | :--- |
-| **Listening** | 🟢 Green | Constant |
-| **Thinking** | 🔵 Blue | Blinking |
-| **Speaking** | ⚫ Off | (Off to allow conversation) |
+| **Listening** | � Blue | Constant (100% Blue) |
+| **Thinking** | 🔵 Blue | Pulsing |
+| **Speaking** | 🔵 Blue | Constant |
 | **Error** | 🔴 Red | Blinking |
 | **Muted** | 🟣 Purple | Pulsing (on LED 2) |
+| **Ringing** | 🟠 Amber | Constant (Gold) |
+
 
 ## Acoustic Signals
 
