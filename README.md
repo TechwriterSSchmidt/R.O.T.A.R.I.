@@ -127,11 +127,12 @@ The 4 buttons on the device provide local control and visual feedback via the 4-
 
 | State | LED Color | Animation |
 | :--- | :--- | :--- |
-| **Listening** | 🔵 Blue | Constant (100% Blue) |
+| **Listening** | 🟢 Green | Constant (100% Green) |
 | **Thinking** | 🔵 Blue | Pulsing |
 | **Speaking** | 🔵 Blue | Constant |
 | **Error** | 🔴 Red | Blinking |
-| **Muted** | 🟣 Purple | Pulsing (on LED 2) |
+| **Muted** | 🟣 Purple | Pulsing (on LED 1) |
+| **Find Phone** | 🟡 Yellow | Blinking |
 | **Ringing** | 🟠 Amber | Constant (Gold) |
 
 
