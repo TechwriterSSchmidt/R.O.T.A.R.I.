@@ -106,6 +106,20 @@ The 4 buttons on the device provide local control and visual feedback via the 4-
 | **Error** | 🔴 Red | Blinking |
 | **Muted** | 🟣 Purple | Pulsing (on LED 2) |
 
+## Acoustic Signals
+
+The device generates synthetic vintage call progress tones directly in the handset earpiece.
+
+| Signal | Sound Profile | Trigger Condition |
+| :--- | :--- | :--- |
+| **Dial Tone** | 425Hz Sine + Analog Hiss + Pitch Wobble | Handset lifted (Off-Hook). Stops when dialing begins. |
+| **Dialing Noise** | Low-volume White Noise (Static) | While the rotary dial is in motion (Active). |
+| **Impulse Click** | Sharp Mechanical Click | Per dial pulse (1-10 clicks per digit). |
+| **Pickup Click** | Single "Pop" | After dialing is complete, before Voice Assistant (TTS) responds. |
+| **Busy Tone** | 425Hz Pulse (480ms ON / 480ms OFF) | After the Voice Assistant finishes speaking (Call ended). |
+| **Ringing** | Mechanical Bell or Haptic Vibration | External incoming call (Home Assistant automation). |
+| **Ringback Tone** | *Not Implemented* | *Currently simulates an instant pickup (0ms delay).* |
+
 ## Home Assistant Integration
 
 The device is designed to be a "dumb input, smart output" terminal. It acts as a physical interface for your Home Assistant logic.
