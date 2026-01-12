@@ -70,7 +70,7 @@ Since the physical PCB schematic is separate, use this reference for wiring the 
 | | DOUT (Speaker) | `GPIO 15` | MAX98357A / DAC |
 | | BCLK | `GPIO 6` | Shared clocks possible |
 | | LRCLK | `GPIO 5` | |
-| **I2S Base** | DOUT (Speaker) | `GPIO 19` | Large amplifier for Ringing |
+| **I2S Base** | DOUT (Speaker) | `GPIO 19` | Amplifier for separate base speaker for authentic Ringing |
 | | BCLK | `GPIO 18` | |
 | | LRCLK | `GPIO 16` | |
 | **Rotary Dial** | Pulse Switch | `GPIO 14` | Connect to GND, Input Pullup |
@@ -220,6 +220,7 @@ Estimated runtimes based on active WiFi connection and average idle power consum
 
 *   **AI Answering Machine:** Integration for received AI voice messages.
 *   **Enhanced Haptics:** More vibration patterns for different notifications.
+
 
 
 
