@@ -34,7 +34,7 @@ If you like this project, consider a tip. Your tip motivates me to continue deve
 | **Input** | **Rotary Dial** | Sends events to Home Assistant. Robust software debouncing (15ms) for reliable digit detection. |
 | | **Speed Dial Buttons** | **Button 1:** System (Battery/DND). **Buttons 2-4:** Custom HA events. |
 | **Smart Helpers** | **Sensors** | Supports BME280 (Temp/Hum/Press). |
-| | **Room Tracking** | Bluetooth proxy enabled for room presence via Bermuda/ESPresense. |
+| | **Room Tracking** | Hardware ready for Bluetooth proxy (Disabled by default to optimize audio). |
 | | **Find My Phone** | Visual alarm mode if device is misplaced. |
 | | **Battery Power** | Voltage monitoring with configurable low-battery thresholds. |
 | | **Watchdog** | Auto-reboot on connection loss. `Safe Mode` enabled for crash recovery. |
@@ -237,7 +237,7 @@ Estimated runtimes based on active WiFi connection and average idle power consum
 | **5000 mAh** | ~23 Hours | ~12 Hours |
 
 > **Standard Mode:** WiFi Connected, Voice Assistant Ready, occasional interaction.
-> **Performance Mode:** Bluetooth Proxy enabled or continuous audio playback.
+> **Performance Mode:** Continuous audio playback (Music/TTS).
 
 ## Future Roadmap
 
