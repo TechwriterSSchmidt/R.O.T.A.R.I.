@@ -228,13 +228,13 @@ action:
 
 ## Battery Life Estimates
 
-Estimated runtimes based on active WiFi connection and average idle power consumption (~180mA for Standard, ~350mA for Heavy).
+Estimated runtimes based on active WiFi connection and average idle power consumption (~150mA for Standard, ~250mA for Audio).
 
 | Battery Capacity | Standard Mode (Est.) | Performance Mode (Est.) |
 | :--- | :--- | :--- |
-| **1500 mAh** | ~7 Hours | ~3.5 Hours |
-| **3000 mAh** | ~14 Hours | ~7 Hours |
-| **5000 mAh** | ~23 Hours | ~12 Hours |
+| **1500 mAh** | ~8 Hours | ~4.5 Hours |
+| **3000 mAh** | ~16 Hours | ~9 Hours |
+| **5000 mAh** | ~26 Hours | ~16 Hours |
 
 > **Standard Mode:** WiFi Connected, Voice Assistant Ready, occasional interaction.
 > **Performance Mode:** Continuous audio playback (Music/TTS).
