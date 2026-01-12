@@ -237,6 +237,9 @@ voice_assistant:
     - light.turn_on: 
         id: led_status
         effect: "Error Pulse"
+        red: 100%
+        green: 0%
+        blue: 0%
     - delay: 2s
     - light.turn_off: led_status
 
@@ -259,25 +262,24 @@ light:
           update_interval: 1000ms
           min_brightness: 10%
           max_brightness: 100%
-      - strobe:
+      - pulse:
           name: "Error Pulse"
-          colors:
-            - state: true
-              brightness: 100%
-              red: 100%
-              green: 0%
-              blue: 0%
-              duration: 300ms
-            - state: false
-              duration: 300ms
+          transition_length: 500ms
+          update_interval: 1000ms
+          min_brightness: 10%
+          max_brightness: 100%
       - pulse: 
           name: "Find Phone Pulse"
-          transition_length: 800ms
-          update_interval: 1600ms
+          transition_length: 500ms
+          update_interval: 1000ms
+          min_brightness: 10%
+          max_brightness: 100%
       - pulse:
           name: "Broadcast Pulse"
           transition_length: 500ms
           update_interval: 1000ms
+          min_brightness: 10%
+          max_brightness: 100%
       - addressable_lambda:
           name: "Battery Level"
           update_interval: 1s
