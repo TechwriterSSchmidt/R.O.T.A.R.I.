@@ -33,7 +33,7 @@ If you like this project, consider a tip. Your tip motivates me to continue deve
 | | **Acoustic Feedback** | Ringtones via DY-SV17F MP3 module (Base) and synthesized tones via I2S (Handset). |
 | **Input** | **Rotary Dial** | Sends events to Home Assistant. Robust software debouncing (15ms) for reliable digit detection. |
 | | **Speed Dial Buttons** | **Button 1:** System (Battery/DND). **Buttons 2-4:** Custom HA events. |
-| **Smart Helpers** | **Sensors** | Supports BME280 (Temp/Hum/Press) and LD2410 (Radar Presence). |
+| **Smart Helpers** | **Sensors** | Supports BME280 (Temp/Hum/Press). |
 | | **Room Tracking** | Bluetooth proxy enabled for room presence via Bermuda/ESPresense. |
 | | **Find My Phone** | Visual alarm mode if device is misplaced. |
 | | **Battery Power** | Voltage monitoring with configurable low-battery thresholds. |
@@ -214,7 +214,7 @@ Estimated runtimes based on active WiFi connection and average idle power consum
 | **5000 mAh** | ~23 Hours | ~12 Hours |
 
 > **Standard Mode:** WiFi Connected, Voice Assistant Ready, occasional interaction.
-> **Performance Mode:** Bluetooth Proxy enabled, Radar Sensor (LD2410) active, or continuous audio playback.
+> **Performance Mode:** Bluetooth Proxy enabled or continuous audio playback.
 
 ## Future Roadmap
 
