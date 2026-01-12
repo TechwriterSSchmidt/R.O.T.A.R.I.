@@ -133,11 +133,11 @@ The 4 buttons on the device provide local control and visual feedback via the 4-
 | **Listening** | 🟢 Green | Constant (100% Green) |
 | **Thinking** | 🟠 Amber | Pulsing |
 | **Speaking** | 🔵 Blue | Constant |
-| **Error** | 🔴 Red | Pulsing |
+| **Error** | 🔴 Red | Blinking |
 | **DND** | 🟣 Purple | Constant |
 | **Find Phone** | 🟡 Yellow | Pulsing |
 | **Hands-Free** | ⚪ Warm White | Constant |
-| **Bootup** | ⚪ Warm White | All LEDs Pulsing |
+| **Bootup** | 🔴 Red | All LEDs Constant |
 
 
 ## Acoustic Signals

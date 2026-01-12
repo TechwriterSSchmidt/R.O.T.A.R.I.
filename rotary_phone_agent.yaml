@@ -259,10 +259,17 @@ light:
           update_interval: 1000ms
           min_brightness: 10%
           max_brightness: 100%
-      - pulse:
+      - strobe:
           name: "Error Pulse"
-          transition_length: 500ms
-          update_interval: 1000ms
+          colors:
+            - state: true
+              brightness: 100%
+              red: 100%
+              green: 0%
+              blue: 0%
+              duration: 300ms
+            - state: false
+              duration: 300ms
       - pulse: 
           name: "Find Phone Pulse"
           transition_length: 800ms
@@ -623,42 +630,38 @@ button:
 
 # Scripts
 script:
-  # Boot Animation (Simultaneous Slow Blink for all LEDs)
+  # Boot Animation (Constant Red for 3s)
   - id: boot_animation
     then:
-      - repeat:
-          count: 2
-          then:
-            - light.turn_on:
-                id: led_status
-                brightness: 100%
-                red: 100% 
-                green: 80% 
-                blue: 20%
-            - light.turn_on:
-                id: led_btn_2
-                brightness: 100%
-                red: 100% 
-                green: 80% 
-                blue: 20%
-            - light.turn_on:
-                id: led_btn_3
-                brightness: 100%
-                red: 100% 
-                green: 80% 
-                blue: 20%
-            - light.turn_on:
-                id: led_btn_4
-                brightness: 100%
-                red: 100% 
-                green: 80% 
-                blue: 20%
-            - delay: 700ms
-            - light.turn_off: led_status
-            - light.turn_off: led_btn_2
-            - light.turn_off: led_btn_3
-            - light.turn_off: led_btn_4
-            - delay: 500ms
+      - light.turn_on:
+          id: led_status
+          brightness: 100%
+          red: 100% 
+          green: 0% 
+          blue: 0%
+      - light.turn_on:
+          id: led_btn_2
+          brightness: 100%
+          red: 100% 
+          green: 0% 
+          blue: 0%
+      - light.turn_on:
+          id: led_btn_3
+          brightness: 100%
+          red: 100% 
+          green: 0% 
+          blue: 0%
+      - light.turn_on:
+          id: led_btn_4
+          brightness: 100%
+          red: 100% 
+          green: 0% 
+          blue: 0%
+      - delay: 3s
+      - light.turn_off: led_status
+      - light.turn_off: led_btn_2
+      - light.turn_off: led_btn_3
+      - light.turn_off: led_btn_4
 
   # Process and send dialed string
   - id: flush_dialed_number
