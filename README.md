@@ -42,7 +42,7 @@ If you like this project, consider a tip. Your tip motivates me to continue deve
 
 ## Hardware Support
 
-*   **Target Controller:** [WEMOS S3 Pro](https://www.wemos.cc/en/latest/s3/s3_pro.html) (ESP32-S3)
+*   **Target Controller:** [WEMOS S3 Pro](https://www.wemos.cc/en/latest/s3/s3_pro.html) (ESP32-S3) - ([Schematic](docs/sch_s3_pro_v1.0.0.pdf) | [Dimensions](docs/dim_s3_pro_v1.0.0.pdf))
 *   **Dev/Test Controller:** Generic ESP32-S3 (Unknown Model - 16MB Flash / 8MB PSRAM) - *Currently used for development until the S3 Pro arrives.*
 *   **Audio Base:** I2S Bus B -> DY-SV17F / Amplifier for loud Ringing.
 *   **Audio Handset:** I2S Bus A -> MAX98357A (Speaker) + INMP441 (Mic).
