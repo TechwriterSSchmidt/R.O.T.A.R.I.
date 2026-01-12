@@ -198,9 +198,9 @@ voice_assistant:
               id: led_status
               effect: "none"
               brightness: 100%
-              red: 50%
+              red: 100%
               green: 0%
-              blue: 100% # Purple Constant
+              blue: 50% # Pink Constant
         else:
           - light.turn_on:
               id: led_status
@@ -243,7 +243,7 @@ voice_assistant:
         red: 100%
         green: 0%
         blue: 0%
-    - delay: 3s
+    - delay: 4s
     - light.turn_off: led_status
 
 # LED Configuration (4 Separate Neopixels)
@@ -261,9 +261,9 @@ light:
     effects:
       - pulse:
           name: "Thinking Pulse"
-          transition_length: 500ms
-          update_interval: 150ms
-          min_brightness: 5%
+          transition_length: 1000ms
+          update_interval: 1000ms
+          min_brightness: 1%
           max_brightness: 100%
       - addressable_lambda:
           name: "Battery Level"
@@ -558,9 +558,9 @@ switch:
           id: led_status
           effect: "none"
           brightness: 100%
-          red: 50%
+          red: 100%
           green: 0%
-          blue: 100% # Purple Constant
+          blue: 50% # Pink Constant
     on_turn_off:
       - light.turn_off: led_status
 
@@ -574,9 +574,9 @@ switch:
           id: led_status
           effect: "none"
           brightness: 100%
-          red: 100%
-          green: 80%
-          blue: 20% # Warm White Constant
+          red: 50%
+          green: 0%
+          blue: 100% # Purple Constant
     on_turn_off:
       - light.turn_off: led_status
 
