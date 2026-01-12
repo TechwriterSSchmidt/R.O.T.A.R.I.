@@ -270,6 +270,21 @@ light:
               duration: 300ms
             - state: false
               duration: 300ms
+      - strobe:
+          name: "Muted Pulse"
+          colors:
+            - state: true
+              brightness: 100%
+              red: 100%
+              green: 0%
+              blue: 100%
+              duration: 1000ms
+            - state: true
+              brightness: 20%
+              red: 100%
+              green: 0%
+              blue: 100%
+              duration: 1000ms
       - pulse: 
           name: "Find Phone Pulse"
           transition_length: 100ms
@@ -301,8 +316,8 @@ light:
     id: led_btn_2
     restore_mode: ALWAYS_OFF
     effects:
-      - pulse:
-          name: "Mute Pulse" # Optional if used later
+      # - pulse:
+      #    name: "Mute Pulse" # Moved to Status LED
           
   # LED 3: Button 3 Feedback
   - platform: neopixelbus
