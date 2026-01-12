@@ -175,6 +175,7 @@ media_player:
 
 voice_assistant:
   microphone: mic_i2s
+  auto_gain: 0dBFS
   speaker: speaker_handset # Respond only via Handset
   on_start:
     - if:
@@ -456,6 +457,7 @@ globals:
     type: int
     restore_value: yes
     initial_value: '2000'
+
   - id: is_muted
     type: bool
     restore_value: no
@@ -560,6 +562,40 @@ number:
     optimistic: true
     restore_value: true
     initial_value: 2 # Standard: Bis zu 2x Klingeln
+
+  # Speaker Volumes - Updates MuxSpeaker "Volume" variables
+  - platform: template
+    name: "Volume Handset"
+    id: setting_vol_handset
+    min_value: 0
+    max_value: 200 # Percent
+    step: 5
+    optimistic: true
+    initial_value: 100
+    restore_value: true
+    entity_category: config
+    on_value:
+      then:
+        - lambda: |-
+            static_cast<mux_speaker::MuxSpeaker*>(id(speaker_handset))->set_handset_volume(x / 100.0f);
+
+  - platform: template
+    name: "Volume Base"
+    id: setting_vol_base
+    min_value: 0
+    max_value: 200 # Percent
+    step: 5
+    optimistic: true
+    initial_value: 100
+    restore_value: true
+    entity_category: config
+    on_value:
+      then:
+        - lambda: |-
+            static_cast<mux_speaker::MuxSpeaker*>(id(speaker_handset))->set_base_volume(x / 100.0f);
+
+  # Microphone Gains
+
 
 switch:
   - platform: template

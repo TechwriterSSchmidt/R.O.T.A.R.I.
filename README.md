@@ -9,15 +9,14 @@ If you like this project, consider a tip. Your tip motivates me to continue deve
 
 ## Table of Contents
 *   [Features](#features)
-*   [Hardware Support](#hardware-support)
+*   [Operational Logic](#operational-logic)
+*   [Hardware Support & Pinout](#hardware-support--pinout)
 *   [Project Structure](#project-structure)
-*   [Pinout Configuration](#pinout-configuration)
+*   [Audio Configuration](#audio-configuration)
 *   [LED Signaling & Button Functions](#led-signaling--button-functions)
-*   [Required Sound Files](#required-sound-files)
 *   [Getting Started](#getting-started)
+*   [Home Assistant Integration](#home-assistant-integration)
 *   [Maintenance](#maintenance)
-*   [Battery Life Estimates](#battery-life-estimates)
-*   [Future Roadmap](#future-roadmap)
 *   [Release Notes](RELEASE_NOTES.md)
 
 ## Features
@@ -38,52 +37,76 @@ If you like this project, consider a tip. Your tip motivates me to continue deve
 | | **Room Tracking** | Bluetooth proxy enabled for room presence via Bermuda/ESPresense. |
 | | **Find My Phone** | Visual alarm mode if device is misplaced. |
 | | **Battery Power** | Voltage monitoring with configurable low-battery thresholds. |
-| | **Watchdog** | Auto-reboot on connection loss. |
+| | **Watchdog** | Auto-reboot on connection loss. `Safe Mode` enabled for crash recovery. |
+| **Advanced Audio** | **Smart Routing** | Dynamic switching between Handset (Private) and Base Speaker (Public) based on mode. |
+| | **Auto Gain** | Microphone automagically adjusts volume level (0dBFS) for whispering or distance talking. |
 
-## Hardware Support
+## Operational Logic
 
-*   **Target Controller:** [WEMOS S3 Pro](https://www.wemos.cc/en/latest/s3/s3_pro.html) (ESP32-S3) - ([Schematic](docs/sch_s3_pro_v1.0.0.pdf) | [Dimensions](docs/dim_s3_pro_v1.0.0.pdf))
-*   **Dev/Test Controller:** Generic ESP32-S3 (Unknown Model - 16MB Flash / 8MB PSRAM) - *Currently used for development until the S3 Pro arrives.*
-*   **Audio Base:** I2S Bus B -> DY-SV17F / Amplifier for loud Ringing.
-*   **Audio Handset:** I2S Bus A -> MAX98357A (Speaker) + INMP441 (Mic).
-*   **Feedback:** DRV2605 LRA Haptic Driver (for silent ringing).
-*   **MP3:** DY-SV17F UART Module (Ringtones).
+The device differentiates between two main usage modes based on the handset state:
+
+### 1. Call Mode (Handset Lifted)
+*   **Trigger:** Lift the handset (Off-Hook) or activate Speakerphone.
+*   **Behavior:** Full vintage simulation. You hear dial tones, dialing clicks, and connection noise.
+*   **Actions:**
+    *   Dial `0`: Connect to Voice Assistant.
+    *   Dial `1..9`: Simulate a phone call to Home Assistant (fires event with delay).
+
+### 2. Command Mode (Handset on Cradle)
+*   **Trigger:** Rotate the dial while the phone is On-Hook.
+*   **Behavior:** Silent operation. No tones are played.
+*   **Actions:**
+    *   Dial `1..9`: Sends instant events to Home Assistant. Ideal for scenarios like "Dial 1 to toggle lights" or "Dial 5 for Cinema Mode".
+
+## Hardware Support & Pinout
+
+**Target Board:** WEMOS S3 Pro (ESP32-S3)
+
+Since the physical PCB schematic is separate, use this reference for wiring the components to the ESP32-S3.
+
+| Component | Pin Function | GPIO | Notes |
+| :--- | :--- | :--- | :--- |
+| **I2S Handset** | DIN (Mic) | `GPIO 7` | INMP441 / similar |
+| | DOUT (Speaker) | `GPIO 15` | MAX98357A / DAC |
+| | BCLK | `GPIO 6` | Shared clocks possible |
+| | LRCLK | `GPIO 5` | |
+| **I2S Base** | DOUT (Speaker) | `GPIO 19` | Large amplifier for Ringing |
+| | BCLK | `GPIO 18` | |
+| | LRCLK | `GPIO 16` | |
+| **Rotary Dial** | Pulse Switch | `GPIO 14` | Connect to GND, Input Pullup |
+| | Active Switch | `GPIO 13` | Connect to GND, Input Pullup |
+| **Phone Hook** | Hook Switch | `GPIO 1` | Open = Off-Hook |
+| **Battery** | Voltage | `GPIO 4` | On-board divider (Factor 2.0) |
+| **LEDs** | LED Strip | `GPIO 2` | WS2812B / Neopixel |
+| **I2C Bus** | SDA | `GPIO 8` | For DRV2605 / Sensors |
+| | SCL | `GPIO 9` | |
+| **Accessory** | Buttons 1-3 | `GPIO 10-12` | Speed dials |
+| | Button 4 | `GPIO 21` | |
 
 ## Project Structure
 
 This project has been refactored for maintainability:
 
 *   **`rotary_phone_agent.yaml`**: Main configuration file.
-    *   **Pin Definitions**: All GPIO assignments are defined in the `substitutions` block at the top.
-    *   **Settings**: Timings and thresholds are available as variables/globals.
-*   **`src/rotary_helpers.h`**: Custom C++ helper functions (Battery logic, UART commands, Tone colors).
-*   **`components/vintage_tone_generator`**: Custom External Component. Handles the generation of synths (Dial/Busy tones), clicks, and noise injection into the I2S stream.
-*   **`components/drv2605`**: Custom or patched components.
+    *   **Pin Definitions**: All GPIO assignments are defined in the `substitutions` block.
+*   **`components/mux_speaker`**: **[NEW]** Custom component. handles logic to route audio streams and maintain separate volume levels for Handset vs Base.
+*   **`components/vintage_tone_generator`**: Custom Component. Generates low-latency synths (Dial/Busy tones), clicks, and noise injection.
+*   **`src/rotary_helpers.h`**: Lightweight helper functions (Battery logic, tone colors).
 
-## Pinout Configuration
+## Audio Configuration
 
-You can easily change the pin assignments in `rotary_phone_agent.yaml` under `substitutions`.
+R.O.T.A.R.I. features advanced audio routing that allows it to function as both a private handset and a room-filling speakerphone.
 
-| Component | Function | Variable | Default GPIO |
-| :--- | :--- | :--- | :--- |
-| **I2S Handset** | LRCLK | `pin_i2s_handset_lrclk` | 5 |
-| | BCLK | `pin_i2s_handset_bclk` | 6 |
-| | DIN (Mic) | `pin_i2s_handset_din` | 7 |
-| | DOUT (Spk) | `pin_i2s_handset_dout` | 15 |
-| **I2S Base** | LRCLK | `pin_i2s_base_lrclk` | 16 |
-| | BCLK | `pin_i2s_base_bclk` | 18 |
-| | DOUT (Spk) | `pin_i2s_base_dout` | 19 |
-| **Mechanics** | Hook | `pin_hook_switch` | 1 |
-| | Dial Pulse | `pin_dial_pulse` | 14 |
-| | Dial Active | `pin_dial_active` | 13 |
-| **Peripherals** | LEDs | `pin_led_strip` | 2 |
-| | Battery | `pin_battery_voltage` | 4 |
-| | MP3 TX | `pin_uart_tx` | 43 |
-| | MP3 RX | `pin_uart_rx` | 44 |
-| **Buttons** | Button 1 | `pin_button_1` | 10 |
-| | Button 2 | `pin_button_2` | 11 |
-| | Button 3 | `pin_button_3` | 12 |
-| | Button 4 | `pin_button_4` | 21 |
+### Volume & Sensitivity Control
+You can fine-tune the audio experience directly from Home Assistant. All settings are **persistent** and saved to the ESP's flash memory.
+
+| Setting | Function | Recommended Value |
+| :--- | :--- | :--- |
+| **Volume Handset** | Playback volume for the ear speaker. | 40-80% |
+| **Volume Base** | Playback volume for the speakerphone/ringtones. | 50-100% |
+| **Auto Gain** | Automatic microphone gain control (target 0dBFS). | Enabled |
+
+*Note: The system creates `number` entities in Home Assistant for these values.*
 
 ## LED Signaling & Button Functions
 
@@ -117,8 +140,13 @@ The device generates synthetic vintage call progress tones directly in the hands
 | **Impulse Click** | Sharp Mechanical Click | Per dial pulse (1-10 clicks per digit). |
 | **Pickup Click** | Single "Pop" | After dialing is complete, before Voice Assistant (TTS) responds. |
 | **Busy Tone** | 425Hz Pulse (480ms ON / 480ms OFF) | After the Voice Assistant finishes speaking (Call ended). |
-| **Ringing** | Mechanical Bell or Haptic Vibration | External incoming call (Home Assistant automation). |
-| **Ringback Tone** | *Not Implemented* | *Currently simulates an instant pickup (0ms delay).* |
+| **Ringing** | Mechanical Bell or Haptic Vibration | Incoming call script triggered. |
+
+## Getting Started
+
+1.  **Secrets:** Ensure you have a `secrets.yaml` with your `wifi_ssid` and `wifi_password`.
+2.  **Build:** Run `esphome run rotary_phone_agent.yaml` to compile and upload.
+3.  **Adjust:** Use the `globals` in the YAML to tweak Ringtone Duration or Vibration intensity.
 
 ## Home Assistant Integration
 
@@ -130,7 +158,7 @@ Trigger your automations using these Events (available in HA under `Developer To
 
 | Trigger Source | Event Name (`event_type`) | Data Payload (`trigger.event.data`) | Description |
 | :--- | :--- | :--- | :--- |
-| **Rotary Dial** | `esphome.rotary_dial` | `number` (e.g., "110", "1") | Fired when a number is dialed and the timeout expires. Primary way to control logic. |
+| **Rotary Dial** | `esphome.rotary_dial` | `number` (e.g., "110", "1") | Fired when a number is dialed and the timeout expires. |
 | **Buttons 2-4** | `esphome.rotary_phone_button` | `button` (e.g., "2", "3", "4") | Fired when one of the custom buttons is pressed. |
 | **Hook Flash** | `esphome.rotary_phone_flash` | - | Fired when the hook is tapped briefly (short press). |
 | **Low Battery** | `esphome.rotary_phone_low_battery` | - | Fired once when the battery voltage drops below the threshold. |
@@ -156,8 +184,8 @@ action:
               message: "Calling Mama..."
           # Add notify / VoIP calls here
       
-      # Option 2: Activate "Cinema Mode"
-      - conditions: "{{ trigger.event.data.number == '42' }}"
+      # Option 2: Activate "Cinema Mode" (Command Mode Example)
+      - conditions: "{{ trigger.event.data.number == '5' }}"
         sequence:
           - service: scene.turn_on
             target: { entity_id: scene.living_room_cinema }
@@ -169,22 +197,6 @@ action:
           entity_id: media_player.rotary_phone_handset_speaker
           message: "The number {{ trigger.event.data.number }} is not in service."
 ```
-
-## Required Sound Files
-
-The firmware controls a DY-SV17F MP3 module which requires specific filenames on the internal 4mb flash (FAT32 formatted).
-
-| Filename | Description | Usage |
-| :--- | :--- | :--- |
-| **`00001.mp3`** | **Ringtone** | Plays through the **Base Speaker** when the "Ring Phone" script is triggered. |
-
-> **Note:** The "Click/Tick" sounds for dialing and the "Hook Flash" signal are generated electronically in the handset.
-
-## Getting Started
-
-1.  **Secrets:** Ensure you have a `secrets.yaml` with your `wifi_ssid` and `wifi_password`.
-2.  **Build:** Run `esphome run rotary_phone_agent.yaml` to compile and upload.
-3.  **Adjust:** Use the `globals` in the YAML to tweak Ringtone Duration or Vibration intensity.
 
 ## Maintenance
 
@@ -206,9 +218,7 @@ Estimated runtimes based on active WiFi connection and average idle power consum
 
 ## Future Roadmap
 
-*   **AI Answering Machine:** Integration for received AI voice messages like appointment reminders, birthday calendar, or general notifications.
-    *   **Features:** Visual signaling (LED blinking) for waiting messages. Playback upon lifting the handset.
-
-
+*   **AI Answering Machine:** Integration for received AI voice messages.
+*   **Enhanced Haptics:** More vibration patterns for different notifications.
 
 

@@ -1,5 +1,22 @@
 # Release Notes
 
+## [v2026.1.0] - 2026-01-12 - The "Voice Perfection" Update
+
+### 🎤 Audio & Voice
+*   **Auto-Gain Control:** Replaced complex manual gain sliders with ESPHome's native `auto_gain`. The microphone now automatically adjusts to 0dBFS, handling whisper-quiet inputs and room-scale commands seamlessly.
+*   **MuxSpeaker Component:** Introduced a custom C++ component (`mux_speaker`) to intelligently route audio. It provides independent volume controls for the Handset and Base Speaker in Home Assistant.
+*   **Dual Mode Logic:**
+    *   **Call Mode:** Lifting the handset triggers full vintage simulation (dial tones, noise).
+    *   **Command Mode:** Dialing while on-hook sends immediate commands to HA without audio feedback.
+
+### 🛡 Stability
+*   **Safe Mode:** Enabled `safe_mode` to prevent boot loops during configuration errors.
+*   **Watchdogs:** Added 5-minute timeout watchdogs for WiFi and API connections.
+
+### 🐛 Bug Fixes
+*   **Crash Fix:** Resolved a `LoadProhibited` panic in the `vintage_tone_generator`.
+*   **Wiring:** Updated `GPIO4` voltage divider factor for accurate battery readings on WEMOS S3 Pro.
+
 ## [v1.0.0] - 2026-01-09 - Initial "R.O.T.A.R.I." Launch
 
 ### 🚀 Major Features & Rebranding
