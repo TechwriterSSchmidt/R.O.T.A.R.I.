@@ -193,7 +193,11 @@ voice_assistant:
           - logger.log: "Voice Assistant blocked because of DND"
           - light.turn_on:
               id: led_status
-              effect: "DND Pulse"
+              effect: "none"
+              brightness: 100%
+              red: 50%
+              green: 0%
+              blue: 100% # Purple Constant
         else:
           - light.turn_on:
               id: led_status
@@ -255,25 +259,18 @@ light:
           update_interval: 1000ms
           min_brightness: 10%
           max_brightness: 100%
-      - strobe:
+      - pulse:
           name: "Error Pulse"
-          colors:
-            - state: true
-              brightness: 100%
-              red: 100%
-              green: 0%
-              blue: 0%
-              duration: 300ms
-            - state: false
-              duration: 300ms
+          transition_length: 500ms
+          update_interval: 1000ms
       - pulse: 
           name: "Find Phone Pulse"
-          transition_length: 100ms
-          update_interval: 750ms
+          transition_length: 800ms
+          update_interval: 1600ms
       - pulse:
           name: "Broadcast Pulse"
-          transition_length: 300ms
-          update_interval: 300ms
+          transition_length: 500ms
+          update_interval: 1000ms
       - addressable_lambda:
           name: "Battery Level"
           update_interval: 1s
@@ -582,9 +579,9 @@ switch:
           id: led_status
           effect: "none"
           brightness: 100%
-          red: 0%
-          green: 100%
-          blue: 0%
+          red: 100%
+          green: 80%
+          blue: 20% # Warm White Constant
     on_turn_off:
       - light.turn_off: led_status
 
@@ -626,41 +623,42 @@ button:
 
 # Scripts
 script:
-  # Boot Animation (Chase Effect over 4 simple LEDs)
+  # Boot Animation (Simultaneous Slow Blink for all LEDs)
   - id: boot_animation
     then:
-      - light.turn_on:
-          id: led_status
-          brightness: 100%
-          red: 100% 
-          green: 65% 
-          blue: 0%
-      - delay: 150ms
-      - light.turn_off: led_status
-      - light.turn_on:
-          id: led_btn_2
-          brightness: 100%
-          red: 100% 
-          green: 65% 
-          blue: 0%
-      - delay: 150ms
-      - light.turn_off: led_btn_2
-      - light.turn_on:
-          id: led_btn_3
-          brightness: 100%
-          red: 100% 
-          green: 65% 
-          blue: 0%
-      - delay: 150ms
-      - light.turn_off: led_btn_3
-      - light.turn_on:
-          id: led_btn_4
-          brightness: 100%
-          red: 100% 
-          green: 65% 
-          blue: 0%
-      - delay: 150ms
-      - light.turn_off: led_btn_4
+      - repeat:
+          count: 2
+          then:
+            - light.turn_on:
+                id: led_status
+                brightness: 100%
+                red: 100% 
+                green: 80% 
+                blue: 20%
+            - light.turn_on:
+                id: led_btn_2
+                brightness: 100%
+                red: 100% 
+                green: 80% 
+                blue: 20%
+            - light.turn_on:
+                id: led_btn_3
+                brightness: 100%
+                red: 100% 
+                green: 80% 
+                blue: 20%
+            - light.turn_on:
+                id: led_btn_4
+                brightness: 100%
+                red: 100% 
+                green: 80% 
+                blue: 20%
+            - delay: 700ms
+            - light.turn_off: led_status
+            - light.turn_off: led_btn_2
+            - light.turn_off: led_btn_3
+            - light.turn_off: led_btn_4
+            - delay: 500ms
 
   # Process and send dialed string
   - id: flush_dialed_number
