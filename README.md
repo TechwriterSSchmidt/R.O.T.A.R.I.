@@ -81,7 +81,10 @@ Since the physical PCB schematic is separate, use this reference for wiring the 
 | | Active Switch | `GPIO 13` | Connect to GND, Input Pullup |
 | **Phone Hook** | Hook Switch | `GPIO 1` | Open = Off-Hook |
 | **Battery** | Voltage | `GPIO 4` | On-board divider (Factor 2.0) |
-| **LEDs** | LED Strip | `GPIO 2` | WS2812B / Neopixel |
+| **LEDs** | LED 1 (Status) | `GPIO 2` | WS2812B / Neopixel |
+| | LED 2 | `GPIO 3` | |
+| | LED 3 | `GPIO 20` | |
+| | LED 4 | `GPIO 17` | |
 | **I2C Bus** | SDA | `GPIO 8` | For DRV2605 / Sensors |
 | | SCL | `GPIO 9` | |
 | **Accessory** | Buttons 1-3 | `GPIO 10-12` | Speed dials |
@@ -128,12 +131,11 @@ The 4 buttons on the device provide local control and visual feedback via the 4-
 | State | LED Color | Animation |
 | :--- | :--- | :--- |
 | **Listening** | 🟢 Green | Constant (100% Green) |
-| **Thinking** | 🔵 Blue | Pulsing |
+| **Thinking** | 🟠 Amber | Pulsing |
 | **Speaking** | 🔵 Blue | Constant |
 | **Error** | 🔴 Red | Blinking |
-| **Muted** | 🟣 Purple | Pulsing (on LED 1) |
-| **Find Phone** | 🟡 Yellow | Blinking |
-| **Ringing** | 🟠 Amber | Constant (Gold) |
+| **DND** | 🟣 Purple | Constant |
+| **Find Phone** | 🟡 Yellow | Pulsing |
 
 
 ## Acoustic Signals
