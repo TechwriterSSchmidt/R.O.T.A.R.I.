@@ -168,6 +168,7 @@ Trigger your automations using these Events (available in HA under `Developer To
 Instead of saving numbers on the device, handle them in Home Assistant:
 
 ```yaml
+# Home Assistant Automation Example
 alias: "Rotary Phone Logic"
 mode: queued
 trigger:
