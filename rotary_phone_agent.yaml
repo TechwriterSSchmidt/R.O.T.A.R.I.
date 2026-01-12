@@ -90,7 +90,10 @@ api:
       then:
         - light.turn_on:
             id: led_status
-            effect: "Broadcast Pulse"
+            effect: "Thinking Pulse"
+            red: 0%
+            green: 0%
+            blue: 100%
     - service: stop_broadcast_notification
       then:
         - light.turn_off: led_status
@@ -262,18 +265,17 @@ light:
           update_interval: 1000ms
           min_brightness: 10%
           max_brightness: 100%
-      - pulse: 
-          name: "Find Phone Pulse"
-          transition_length: 500ms
-          update_interval: 1000ms
-          min_brightness: 10%
-          max_brightness: 100%
-      - pulse:
-          name: "Broadcast Pulse"
-          transition_length: 500ms
-          update_interval: 1000ms
-          min_brightness: 10%
-          max_brightness: 100%
+      - addressable_lambda:
+          name: "Battery Level"
+          update_interval: 1s
+          lambda: |-
+            if (id(battery_level).state > 50) {
+              it[0] = Color(0, 255, 0);
+            } else if (id(battery_level).state > 20) {
+              it[0] = Color(255, 165, 0);
+            } else {
+              it[0] = Color(255, 0, 0);
+            }
 
   # LED 2: Button 2 Feedback (Mute/Action)
   - platform: neopixelbus
@@ -550,8 +552,7 @@ switch:
     id: dnd_mode
     icon: "mdi:minus-circle"
     optimistic: true
-    restore_state: false # Standardmäßig auf OFF
-    initial_state: false
+    restore_mode: ALWAYS_OFF
     on_turn_on:
       - light.turn_on:
           id: led_status
@@ -741,7 +742,7 @@ script:
     then:
       - light.turn_on: 
           id: led_status
-          effect: "Find Phone Pulse"
+          effect: "Thinking Pulse"
           red: 100%
           green: 100%
           blue: 0% # Yellow Pulse
