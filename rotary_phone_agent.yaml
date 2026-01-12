@@ -473,7 +473,8 @@ number:
       then:
         - media_player.volume_set:
             id: media_player_base
-            volume: !lambda 'return x / 100.0;'
+            volume: !lambda |-
+              return x / 100.0;
 
   - platform: template
     name: "Low Battery Threshold"
@@ -493,11 +494,13 @@ number:
     min_value: 500
     max_value: 10000
     step: 100
-    lambda: 'return id(dial_string_timeout_ms);'
+    lambda: |-
+      return id(dial_string_timeout_ms);
     set_action:
       - globals.set:
           id: dial_string_timeout_ms
-          value: !lambda 'return x;'
+          value: !lambda |-
+            return x;
 
   - platform: template
     name: "Ringtone Count"
@@ -622,12 +625,14 @@ script:
             - homeassistant.event:
                 event: esphome.rotary_dial
                 data:
-                  number: !lambda 'return id(dialed_number_buffer);'
+                  number: !lambda |-
+                    return id(dialed_number_buffer);
 
             # 2. Update Text Sensor (Display)
             - text_sensor.template.publish:
                 id: dialed_number_string
-                state: !lambda 'return id(dialed_number_buffer);'
+                state: !lambda |-
+                  return id(dialed_number_buffer);
             
             # 3. Local System Actions (Low Latency / Offline fallback)
             - if:
@@ -644,14 +649,16 @@ script:
                 then:
                   - voice_assistant.start
 
-            # 4. Clear Buffer
+            # 4. Clear Buffer & Silence Tone (Ready for TTS)
+            - lambda: 'id(my_tone_gen).stop_tone();'
+            # Simulate "Pickup" click (Connection established)
+            - delay: 200ms
+            - lambda: 'id(my_tone_gen).trigger_click();'
+            
             - globals.set:
                 id: dialed_number_buffer
-                value: ""
-
-            - globals.set:
-                id: dialed_number_buffer
-                value: '""'
+                value: !lambda |-
+                  return "";
             - text_sensor.template.publish:
                 id: dialed_number_string
                 state: ""
@@ -659,7 +666,8 @@ script:
   - id: flush_dialed_number_timer
     mode: restart
     then:
-      - delay: !lambda 'return id(dial_string_timeout_ms);'
+      - delay: !lambda |-
+          return id(dial_string_timeout_ms);
       - script.execute: flush_dialed_number
 
   # Operator Simulation Script
@@ -710,7 +718,8 @@ script:
       # Update sensor
       - sensor.template.publish:
           id: last_dialed_digit
-          state: !lambda 'return (id(dial_pulse_count) == 10) ? 0 : id(dial_pulse_count);'
+          state: !lambda |-
+            return (id(dial_pulse_count) == 10) ? 0 : id(dial_pulse_count);
 
       - if:
           condition:
@@ -747,7 +756,8 @@ script:
     mode: restart
     then:
       - repeat:
-          count: !lambda 'return id(ring_count).state;'
+          count: !lambda |-
+            return id(ring_count).state;
           then:
             # Check if phone is on hook
             - if:
@@ -783,7 +793,8 @@ script:
                   - delay: !lambda |-
                       int remaining = id(ring_duration).state - id(vibe_loop_duration_ms);
                       return (remaining < 0) ? 0 : remaining;
-                  - delay: !lambda 'return id(ring_pause).state;'
+                  - delay: !lambda |-
+                      return id(ring_pause).state;
                 else:
                   - script.stop: ring_phone
 
@@ -861,7 +872,8 @@ binary_sensor:
       - light.turn_off: button_leds
       - globals.set:
           id: hook_down_timestamp
-          value: !lambda 'return millis();'
+          value: !lambda |-
+            return millis();
       - globals.set:
           id: is_muted
           value: 'false'
@@ -945,9 +957,12 @@ binary_sensor:
           id: button_leds
           range_from: 1
           range_to: 2
-          red: !lambda 'return id(feedback_led_brightness).state / 100.0;'
-          green: !lambda 'return (id(feedback_led_brightness).state / 100.0) * 0.8;'
-          blue: !lambda 'return (id(feedback_led_brightness).state / 100.0) * 0.2;'
+          red: !lambda |-
+            return id(feedback_led_brightness).state / 100.0;
+          green: !lambda |-
+            return (id(feedback_led_brightness).state / 100.0) * 0.8;
+          blue: !lambda |-
+            return (id(feedback_led_brightness).state / 100.0) * 0.2;
       - delay: 3s
       - light.addressable_set:
           id: button_leds
@@ -976,9 +991,12 @@ binary_sensor:
           id: button_leds
           range_from: 2
           range_to: 3
-          red: !lambda 'return id(feedback_led_brightness).state / 100.0;'
-          green: !lambda 'return (id(feedback_led_brightness).state / 100.0) * 0.8;'
-          blue: !lambda 'return (id(feedback_led_brightness).state / 100.0) * 0.2;'
+          red: !lambda |-
+            return id(feedback_led_brightness).state / 100.0;
+          green: !lambda |-
+            return (id(feedback_led_brightness).state / 100.0) * 0.8;
+          blue: !lambda |-
+            return (id(feedback_led_brightness).state / 100.0) * 0.2;
       - delay: 3s
       - light.addressable_set:
           id: button_leds
@@ -1008,9 +1026,12 @@ binary_sensor:
           id: button_leds
           range_from: 3
           range_to: 4
-          red: !lambda 'return id(feedback_led_brightness).state / 100.0;'
-          green: !lambda 'return (id(feedback_led_brightness).state / 100.0) * 0.8;'
-          blue: !lambda 'return (id(feedback_led_brightness).state / 100.0) * 0.2;'
+          red: !lambda |-
+            return id(feedback_led_brightness).state / 100.0;
+          green: !lambda |-
+            return (id(feedback_led_brightness).state / 100.0) * 0.8;
+          blue: !lambda |-
+            return (id(feedback_led_brightness).state / 100.0) * 0.2;
       - delay: 3s
       - light.addressable_set:
           id: button_leds
@@ -1033,7 +1054,7 @@ binary_sensor:
       - delayed_off: 10ms
     on_press:
       then:
-        - lambda: 'id(my_tone_gen).stop_tone();'
+        - lambda: 'id(my_tone_gen).start_white_noise(0.05);'
         - globals.set:
             id: dial_pulse_count
             value: '0'
@@ -1058,8 +1079,9 @@ binary_sensor:
       - delayed_off: 10ms
     on_press:
       then:
-        # Acoustic tick (Electronic Click in Handset)
+        # Acoustic tick (Click)
         - lambda: 'id(my_tone_gen).trigger_click();'
         - globals.set:
             id: dial_pulse_count
-            value: !lambda 'return id(dial_pulse_count) + 1;'
+            value: !lambda |-
+              return id(dial_pulse_count) + 1;

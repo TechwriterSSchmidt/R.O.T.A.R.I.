@@ -47,7 +47,16 @@ class VintageToneGenerator : public esphome::Component {
     this->is_pulsing = pulse;
     this->pattern_start = millis();
     this->phase = 0.0f;
+    this->amplitude = 0.5f; // Reset standard amplitude
+    this->noise_amplitude = 0.01f; // Reset standard background noise
     trigger_click();
+  }
+
+  void start_white_noise(float noise_amp) {
+      this->active = true;
+      this->is_pulsing = false;
+      this->amplitude = 0.0f; // Silence tone
+      this->noise_amplitude = noise_amp; // Set requested noise level
   }
 
   void stop_tone() {
