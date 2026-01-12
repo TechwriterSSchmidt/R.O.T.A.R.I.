@@ -1,5 +1,5 @@
 # R.O.T.A.R.I.
-The *R*obotic Operative Telecommunication & Artificial Response Interface. An ESPHome-based firmware that transforms a vintage rotary phone into a modern, portable voice assistant for Home Assistant.
+The **R**obotic **O**perative **T**elecommunication & **A**rtificial **R**esponse **I**nterface. An ESPHome-based firmware that transforms a vintage rotary phone into a modern, portable voice assistant for Home Assistant.
 
 ## Support my projects
 
@@ -220,6 +220,7 @@ Estimated runtimes based on active WiFi connection and average idle power consum
 
 *   **AI Answering Machine:** Integration for received AI voice messages.
 *   **Enhanced Haptics:** More vibration patterns for different notifications.
+
 
 
 
