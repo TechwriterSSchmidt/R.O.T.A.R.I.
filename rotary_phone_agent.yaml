@@ -197,7 +197,7 @@ voice_assistant:
           - light.turn_on:
               id: led_status
               effect: "none"
-              brightness: 45%
+              brightness: 30%
               red: 100%
               green: 0%
               blue: 50% # Pink Constant
@@ -277,7 +277,7 @@ light:
               it[0] = Color(255, 0, 0);
             }
 
-  # LED 2: Button 2 Feedback (Mute/Action)
+  # LED 2: Button 2 Feedback
   - platform: neopixelbus
     type: GRB
     variant: WS2812
@@ -288,8 +288,6 @@ light:
     id: led_btn_2
     restore_mode: ALWAYS_OFF
     effects:
-      # - pulse:
-      #    name: "Mute Pulse" # Moved to Status LED
           
   # LED 3: Button 3 Feedback
   - platform: neopixelbus
@@ -1110,3 +1108,4 @@ binary_sensor:
             id: dial_pulse_count
             value: !lambda |-
               return id(dial_pulse_count) + 1;
+
